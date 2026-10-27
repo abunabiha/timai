@@ -15,3 +15,9 @@
 - **Apa yang jadi**: Model Gateway terpadu (`ModelGateway.complete`) dengan adaptor LiteLLM (OpenAI, Anthropic, Google, OpenRouter) dan FakeProvider untuk pengujian deterministik, enkripsi AES-256-GCM kunci API penyedia dengan masking penuh, CRUD katalog model dan verifikasi tier fallback (>= tier awal), pencatatan otomatis tabel UsageRecord dengan peringatan ketidaksesuaian model aktual, serta UI pengaturan penyedia dan katalog model.
 - **Perintah menjalankan**: Uji via `make test` dan `make lint`, atau akses menu Pengaturan di antarmuka web `http://localhost:3001`.
 - **Hal yang belum**: Alur brief proyek, form brief spesifik profil, ekstraksi lampiran, wawancara klarifikasi, katalog peran (RoleTemplate), dan Team Composer (dikerjakan di Milestone 4).
+
+
+## Milestone 4: Brief, Klarifikasi, Katalog Peran, Team Composer
+- **Apa yang jadi**: Formulir intake brief dengan kolom profil khusus dan ekstraksi lampiran (PDF, DOCX, CSV, BibTeX), wawancara klarifikasi agen Analis (maks. 7 pertanyaan dengan pencatatan asumsi ke `00-brief/klarifikasi.md`), katalog lengkap RoleTemplate 25 peran lintas 5 profil proyek, Team Composer berbasis PRD Bagian 10 dengan rekomendasi tim, pembaruan seketika estimasi biaya/durasi saat tier/model diubah, validasi keberadaan reviewer, serta persetujuan gerbang G1 yang membuat entitas Agent, Gate G1, workspace Git sesuai struktur PRD 5.2c, dan penerbitan `01-tim/team-charter.md` berformat metadata PRD 5.2d.
+- **Perintah menjalankan**: Uji via `make test` dan `make lint`, atau buka wizard Buat Proyek Baru di UI `http://localhost:3001`.
+- **Hal yang belum**: Meeting Engine (satu putaran, state machine diskusi di Postgres, sintesis Scrum Master, Titik Konfirmasi PO, SSE/WebSocket) (dikerjakan di Milestone 5).

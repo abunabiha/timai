@@ -23,6 +23,13 @@ import {
   Activity,
   CheckCircle2,
   AlertCircle,
+  ArrowRight,
+  Sparkles,
+  FileText,
+  DollarSign,
+  Clock,
+  Shield,
+  Upload,
 } from "lucide-react";
 
 interface UserProfile {
@@ -40,6 +47,7 @@ interface ProjectItem {
   status: string;
   budget: number;
   currency: string;
+  workspace_path?: string;
 }
 
 interface ProviderItem {
@@ -69,6 +77,27 @@ interface ModelItem {
   created_at: string;
 }
 
+interface ClarificationQ {
+  id: string;
+  question: string;
+  answer?: string;
+  is_skipped?: boolean;
+}
+
+interface TeamAgent {
+  role_id: string;
+  role_name: string;
+  role_version: number;
+  tier: string;
+  runtime: string;
+  model_id?: string;
+  model_name?: string;
+  fallback_model_id?: string;
+  fallback_model_name?: string;
+  is_reviewer: boolean;
+  reason: string;
+}
+
 export default function HomePage() {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggleTheme } = useTheme();
@@ -87,20 +116,20 @@ export default function HomePage() {
   const [providerTestResults, setProviderTestResults] = useState<Record<string, { success: boolean; message: string; latency?: number }>>({});
   const [modelHealthResults, setModelHealthResults] = useState<Record<string, { is_healthy: boolean; message: string }>>({});
 
-  // Form states for Setup / Login
+  // Auth Form states
   const [adminName, setAdminName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form states for Provider
+  // Provider Form
   const [provName, setProvName] = useState("");
   const [provType, setProvType] = useState("fake");
   const [provApiKey, setProvApiKey] = useState("");
   const [provBaseUrl, setProvBaseUrl] = useState("");
   const [isAddingProv, setIsAddingProv] = useState(false);
 
-  // Form states for Model
+  // Model Form
   const [modProvId, setModProvId] = useState("");
   const [modName, setModName] = useState("");
   const [modIdentifier, setModIdentifier] = useState("");
@@ -109,6 +138,32 @@ export default function HomePage() {
   const [modInputPrice, setModInputPrice] = useState(0.001);
   const [modOutputPrice, setModOutputPrice] = useState(0.002);
   const [isAddingModel, setIsAddingModel] = useState(false);
+
+  // Project Creation & Team Composer Wizard states
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
+  const [currentProjId, setCurrentProjId] = useState<string>("");
+
+  // Step 1: Brief states
+  const [pTitle, setPTitle] = useState("");
+  const [pProfile, setPProfile] = useState("proposal");
+  const [pBrief, setPBrief] = useState("");
+  const [pBudget, setPBudget] = useState(50000000);
+  const [pScheme, setPScheme] = useState("Fundamental");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Step 2: Clarification questions
+  const [clarifyQuestions, setClarifyQuestions] = useState<ClarificationQ[]>([]);
+
+  // Step 3: Team Composer
+  const [proposedAgents, setProposedAgents] = useState<TeamAgent[]>([]);
+  const [costRange, setCostRange] = useState<any>(null);
+  const [durationRange, setDurationRange] = useState<any>(null);
+  const [teamWarnings, setTeamWarnings] = useState<string[]>([]);
+  const [hasReviewer, setHasReviewer] = useState(true);
+
+  // Step 4: Approved Team
+  const [approvedResult, setApprovedResult] = useState<any>(null);
 
   // Check setup status and existing token
   useEffect(() => {
@@ -149,6 +204,7 @@ export default function HomePage() {
     }
 
     checkAuthAndSetup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadProjects = async (authToken: string) => {
@@ -252,6 +308,170 @@ export default function HomePage() {
     setProjects([]);
   };
 
+  // --- Step 1: Create Brief & Upload Attachment ---
+  const handleCreateBrief = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setIsSubmitting(true);
+    setErrorMsg("");
+    try {
+      const res = await fetch("http://localhost:8000/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: pTitle,
+          profile_id: pProfile,
+          brief: pBrief,
+          budget: Number(pBudget),
+          currency: "IDR",
+          profile_fields: { scheme: pScheme },
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setErrorMsg(err.detail || "Gagal membuat proyek");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const proj = await res.json();
+      setCurrentProjId(proj.id);
+
+      // Upload attachment if present
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        await fetch(`http://localhost:8000/api/projects/${proj.id}/attachments`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+      }
+
+      // Fetch Clarification questions
+      const clarRes = await fetch(`http://localhost:8000/api/projects/${proj.id}/clarify`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (clarRes.ok) {
+        const questions = await clarRes.json();
+        setClarifyQuestions(questions.map((q: any) => ({ ...q, answer: "", is_skipped: false })));
+        setWizardStep(2);
+      }
+    } catch {
+      setErrorMsg("Gagal menghubungi server");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // --- Step 2: Submit Clarification Answers ---
+  const handleSubmitClarification = async () => {
+    if (!token || !currentProjId) return;
+    setIsSubmitting(true);
+    try {
+      await fetch(`http://localhost:8000/api/projects/${currentProjId}/clarify/answers`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          answers: clarifyQuestions.map((q) => ({
+            id: q.id,
+            question: q.question,
+            answer: q.answer || "",
+            is_skipped: q.is_skipped || false,
+          })),
+        }),
+      });
+
+      // Load proposed team from Team Composer
+      const compRes = await fetch(`http://localhost:8000/api/projects/${currentProjId}/compose-team?package=balanced`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (compRes.ok) {
+        const teamData = await compRes.json();
+        setProposedAgents(teamData.agents);
+        setCostRange(teamData.cost_range);
+        setDurationRange(teamData.duration_range);
+        setHasReviewer(teamData.has_reviewer);
+        setTeamWarnings(teamData.warnings);
+        setWizardStep(3);
+      }
+    } catch {
+      setErrorMsg("Gagal memproses klarifikasi");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // --- Step 3: Dynamic Recalculate Estimates ---
+  const handleAgentTierOrModelChange = async (index: number, field: "tier" | "model_id", value: string) => {
+    const updated = [...proposedAgents];
+    updated[index] = { ...updated[index], [field]: value };
+    setProposedAgents(updated);
+
+    if (!token || !currentProjId) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/projects/${currentProjId}/recalculate-estimate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          agents: updated,
+          size: "M",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCostRange(data.cost_range);
+        setDurationRange(data.duration_range);
+        setHasReviewer(data.has_reviewer);
+        setTeamWarnings(data.warnings);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  // --- Step 3: Approve Team G1 ---
+  const handleApproveTeamG1 = async () => {
+    if (!token || !currentProjId) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`http://localhost:8000/api/projects/${currentProjId}/approve-team`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          agents: proposedAgents,
+          clarification_notes: "Klarifikasi dan asumsi telah disetujui bersama.",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setApprovedResult(data);
+        setWizardStep(4);
+        loadProjects(token);
+      }
+    } catch {
+      setErrorMsg("Gagal menyetujui tim");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Settings Handlers
   const handleCreateProvider = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
@@ -391,9 +611,9 @@ export default function HomePage() {
           {user && (
             <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
               <span
-                onClick={() => setActiveTab("dashboard")}
+                onClick={() => { setActiveTab("dashboard"); setIsWizardOpen(false); }}
                 className={`cursor-pointer flex items-center gap-1.5 transition-colors ${
-                  activeTab === "dashboard"
+                  activeTab === "dashboard" && !isWizardOpen
                     ? "text-indigo-600 dark:text-indigo-400 font-semibold"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
@@ -411,7 +631,7 @@ export default function HomePage() {
               </span>
               {user.role === "admin" && (
                 <span
-                  onClick={() => setActiveTab("settings")}
+                  onClick={() => { setActiveTab("settings"); setIsWizardOpen(false); }}
                   className={`cursor-pointer flex items-center gap-1.5 transition-colors ${
                     activeTab === "settings"
                       ? "text-indigo-600 dark:text-indigo-400 font-semibold"
@@ -425,7 +645,7 @@ export default function HomePage() {
           )}
 
           <div className="flex items-center space-x-3">
-            {/* User badge if logged in */}
+            {/* User badge */}
             {user && (
               <div className="flex items-center gap-2 pr-2 border-r border-slate-200 dark:border-slate-800">
                 <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs font-semibold">
@@ -470,7 +690,7 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col justify-start">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col justify-start">
         {isLoading ? (
           <div className="text-center py-20 text-slate-400">Loading TimAI...</div>
         ) : !user ? (
@@ -495,49 +715,42 @@ export default function HomePage() {
             )}
 
             {!isSetup ? (
-              // First-run Admin Wizard Form
               <form onSubmit={handleSetupAdmin} className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-xs font-medium">
                   <ShieldCheck className="w-4 h-4 shrink-0" />
                   <span>{t.setupAdminSubtitle}</span>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {t.nameLabel}
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.nameLabel}</label>
                   <input
                     type="text"
                     required
                     value={adminName}
                     onChange={(e) => setAdminName(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
                     placeholder="Administrator"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {t.emailLabel}
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.emailLabel}</label>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
                     placeholder="admin@example.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {t.passwordLabel}
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.passwordLabel}</label>
                   <input
                     type="password"
                     required
                     minLength={8}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
                     placeholder="••••••••"
                   />
                 </div>
@@ -550,12 +763,9 @@ export default function HomePage() {
                 </button>
               </form>
             ) : (
-              // Login Form
               <form onSubmit={handleLogin} className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {t.emailLabel}
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.emailLabel}</label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     <input
@@ -563,15 +773,13 @@ export default function HomePage() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
                       placeholder="user@example.com"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {t.passwordLabel}
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.passwordLabel}</label>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     <input
@@ -579,7 +787,7 @@ export default function HomePage() {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
                       placeholder="••••••••"
                     />
                   </div>
@@ -594,8 +802,342 @@ export default function HomePage() {
               </form>
             )}
           </div>
+        ) : isWizardOpen ? (
+          // ==================== PROJECT CREATION & TEAM COMPOSER WIZARD ====================
+          <div className="max-w-4xl w-full mx-auto space-y-6">
+            {/* Wizard Stepper Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="flex items-center space-x-2 sm:space-x-4 text-xs font-semibold">
+                <span className={`px-3 py-1 rounded-full ${wizardStep === 1 ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"}`}>
+                  {t.stepBrief}
+                </span>
+                <span className={`px-3 py-1 rounded-full ${wizardStep === 2 ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"}`}>
+                  {t.stepClarification}
+                </span>
+                <span className={`px-3 py-1 rounded-full ${wizardStep === 3 ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"}`}>
+                  {t.stepTeam}
+                </span>
+                <span className={`px-3 py-1 rounded-full ${wizardStep === 4 ? "bg-emerald-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"}`}>
+                  {t.stepDone}
+                </span>
+              </div>
+              <button
+                onClick={() => setIsWizardOpen(false)}
+                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                Batal
+              </button>
+            </div>
+
+            {errorMsg && (
+              <div className="p-3 text-xs rounded-lg bg-red-50 dark:bg-red-950/60 border border-red-200 text-red-600">
+                {errorMsg}
+              </div>
+            )}
+
+            {/* STEP 1: BRIEF FORM */}
+            {wizardStep === 1 && (
+              <form onSubmit={handleCreateBrief} className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-indigo-500" />
+                  Formulir Intake Brief Proyek
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.projectTitle}</label>
+                    <input
+                      type="text"
+                      required
+                      value={pTitle}
+                      onChange={(e) => setPTitle(e.target.value)}
+                      placeholder="e.g. Proposal Hibah Deteksi Hama AI"
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.selectProfile}</label>
+                    <select
+                      value={pProfile}
+                      onChange={(e) => setPProfile(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    >
+                      <option value="proposal">Proposal Penelitian (Hibah / Riset)</option>
+                      <option value="jurnal">Artikel Jurnal Ilmiah (IMRaD)</option>
+                      <option value="software">Software Development</option>
+                      <option value="iot">Internet of Things (IoT)</option>
+                      <option value="buku">Buku / Book Chapter</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Brief Proyek & Kriteria Sukses</label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={pBrief}
+                    onChange={(e) => setPBrief(e.target.value)}
+                    placeholder="Jelaskan tujuan penelitian/pengembangan, latar belakang, metodologi yang diharapkan, dan luaran yang ditargetkan..."
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.budget} (IDR)</label>
+                    <input
+                      type="number"
+                      value={pBudget}
+                      onChange={(e) => setPBudget(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      {pProfile === "proposal" ? "Skema Hibah" : pProfile === "jurnal" ? "Target Jurnal / Indeks" : "Spesifikasi Domain"}
+                    </label>
+                    <input
+                      type="text"
+                      value={pScheme}
+                      onChange={(e) => setPScheme(e.target.value)}
+                      placeholder="e.g. Fundamental Reguler Bima"
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.uploadAttachment}</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.csv,.bib,.ris,.txt"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      className="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Menganalisis..." : t.nextStep}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* STEP 2: CLARIFICATION INTERVIEW */}
+            {wizardStep === 2 && (
+              <div className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-indigo-500" />
+                    Wawancara Klarifikasi oleh Agen Analis
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Agen Analis mengidentifikasi beberapa pertanyaan penting untuk memastikan tim dibentuk dengan akurat. Anda dapat menjawab atau melewatinya (akan dicatat sebagai asumsi standar).
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {clarifyQuestions.map((q, idx) => (
+                    <div key={q.id} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 space-y-2">
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        {idx + 1}. {q.question}
+                      </p>
+                      <input
+                        type="text"
+                        disabled={q.is_skipped}
+                        value={q.answer}
+                        onChange={(e) => {
+                          const updated = [...clarifyQuestions];
+                          updated[idx].answer = e.target.value;
+                          setClarifyQuestions(updated);
+                        }}
+                        placeholder="Ketik jawaban Anda di sini..."
+                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 disabled:opacity-40"
+                      />
+                      <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={q.is_skipped}
+                          onChange={(e) => {
+                            const updated = [...clarifyQuestions];
+                            updated[idx].is_skipped = e.target.checked;
+                            setClarifyQuestions(updated);
+                          }}
+                        />
+                        {t.skipAsAssumption}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={handleSubmitClarification}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Menyusun Tim..." : "Rancang Tim AI"}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: RANCANG TIM (TEAM COMPOSER) */}
+            {wizardStep === 3 && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Cpu className="w-5 h-5 text-indigo-500" />
+                      Rekomendasi Tim Agen AI (Team Composer)
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Ubah peran, tier, atau model agen. Estimasi biaya dan durasi diperbarui seketika.
+                    </p>
+                  </div>
+
+                  {/* Estimates Banner */}
+                  {costRange && (
+                    <div className="flex items-center gap-4 bg-indigo-50 dark:bg-indigo-950/50 p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">{t.costRange}</span>
+                        <span className="font-semibold text-indigo-700 dark:text-indigo-300">
+                          {costRange.min_idr.toLocaleString()} – {costRange.max_idr.toLocaleString()} IDR
+                        </span>
+                      </div>
+                      <div className="border-l border-indigo-200 dark:border-indigo-800 pl-4">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">{t.durationRange}</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                          {durationRange?.label || "1–2 minggu"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Warnings */}
+                {teamWarnings.length > 0 && (
+                  <div className="space-y-1">
+                    {teamWarnings.map((w, i) => (
+                      <div key={i} className="p-3 text-xs rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{w}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Agent Cards Grid */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {proposedAgents.map((agent, idx) => (
+                    <div key={idx} className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="font-bold text-sm text-slate-900 dark:text-white block">{agent.role_name}</span>
+                          <span className="text-[10px] font-mono text-slate-400">ID: {agent.role_id} &bull; Runtime: {agent.runtime}</span>
+                        </div>
+                        {agent.is_reviewer && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200">
+                            <Shield className="w-3 h-3" />
+                            {t.reviewerBadge}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{agent.reason}</p>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-850">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Tier</label>
+                          <select
+                            value={agent.tier}
+                            onChange={(e) => handleAgentTierOrModelChange(idx, "tier", e.target.value)}
+                            className="w-full px-2 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 uppercase font-bold text-indigo-600 dark:text-indigo-400"
+                          >
+                            <option value="low">LOW</option>
+                            <option value="medium">MEDIUM</option>
+                            <option value="high">HIGH</option>
+                            <option value="xhigh">XHIGH</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Model</label>
+                          <select
+                            value={agent.model_id || ""}
+                            onChange={(e) => handleAgentTierOrModelChange(idx, "model_id", e.target.value)}
+                            className="w-full px-2 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 truncate"
+                          >
+                            {models.map((m) => (
+                              <option key={m.id} value={m.id}>{m.name} ({m.tier})</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 flex justify-between items-center border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    onClick={() => setWizardStep(2)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800"
+                  >
+                    Kembali
+                  </button>
+
+                  <button
+                    onClick={handleApproveTeamG1}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors shadow-md disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    {isSubmitting ? "Menginisialisasi Workspace..." : t.approveTeamG1}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 4: G1 APPROVED & TEAM CHARTER */}
+            {wizardStep === 4 && (
+              <div className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm text-center space-y-4">
+                <div className="w-12 h-12 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-600">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  Gerbang G1 Berhasil Disetujui!
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto">
+                  Tim agen sebanyak {approvedResult?.agent_count} anggota telah dibentuk. Workspace Git proyek telah diinisialisasi dan dokumen <code>team-charter.md</code> berhasil diterbitkan.
+                </p>
+
+                {approvedResult?.workspace_path && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl font-mono text-xs text-slate-600 dark:text-slate-300 max-w-xl mx-auto break-all">
+                    Workspace: {approvedResult.workspace_path}
+                  </div>
+                )}
+
+                <div className="pt-4">
+                  <button
+                    onClick={() => { setIsWizardOpen(false); setWizardStep(1); }}
+                    className="px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors"
+                  >
+                    Kembali ke Dashboard
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         ) : activeTab === "settings" && user.role === "admin" ? (
-          // ADMIN SETTINGS: PROVIDERS & MODEL CATALOG
+          // ==================== ADMIN SETTINGS ====================
           <div className="space-y-10">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
@@ -609,19 +1151,14 @@ export default function HomePage() {
 
             {/* Providers Section */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Server className="w-5 h-5 text-indigo-500" />
-                  {t.providersTitle}
-                </h2>
-              </div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Server className="w-5 h-5 text-indigo-500" />
+                {t.providersTitle}
+              </h2>
 
-              {/* Add Provider Form */}
               <form onSubmit={handleCreateProvider} className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    {t.providerName}
-                  </label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{t.providerName}</label>
                   <input
                     type="text"
                     required
@@ -632,9 +1169,7 @@ export default function HomePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    {t.providerType}
-                  </label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{t.providerType}</label>
                   <select
                     value={provType}
                     onChange={(e) => setProvType(e.target.value)}
@@ -648,9 +1183,7 @@ export default function HomePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    {t.apiKey}
-                  </label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{t.apiKey}</label>
                   <input
                     type="password"
                     value={provApiKey}
@@ -668,7 +1201,6 @@ export default function HomePage() {
                 </button>
               </form>
 
-              {/* Providers Table */}
               <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-medium">
@@ -726,14 +1258,11 @@ export default function HomePage() {
 
             {/* Model Catalog Section */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Cpu className="w-5 h-5 text-indigo-500" />
-                  {t.modelsCatalog}
-                </h2>
-              </div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-indigo-500" />
+                {t.modelsCatalog}
+              </h2>
 
-              {/* Add Model Form */}
               <form onSubmit={handleCreateModel} className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Penyedia</label>
@@ -805,7 +1334,6 @@ export default function HomePage() {
                 </button>
               </form>
 
-              {/* Model Catalog Table */}
               <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-medium">
@@ -870,22 +1398,37 @@ export default function HomePage() {
             </div>
           </div>
         ) : (
-          // LOGGED IN DASHBOARD
-          <div className="text-center max-w-2xl mx-auto space-y-4 my-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-              {t.loggedInAs} <strong className="uppercase">{user.role}</strong> ({user.name})
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              {t.welcomeTitle}
-            </h1>
-            <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-              {t.welcomeSubtitle}
-            </p>
+          // ==================== LOGGED IN DASHBOARD ====================
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                  {t.loggedInAs} <strong className="uppercase">{user.role}</strong> ({user.name})
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                  {t.welcomeTitle}
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  {t.welcomeSubtitle}
+                </p>
+              </div>
 
-            <div className="pt-8">
+              {user.role !== "viewer" && (
+                <button
+                  onClick={() => { setIsWizardOpen(true); setWizardStep(1); }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-md transition-colors shrink-0"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  {t.createProject}
+                </button>
+              )}
+            </div>
+
+            {/* Project List */}
+            <div>
               {projects.length === 0 ? (
-                <div className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-2xl bg-white/50 dark:bg-slate-950/40 space-y-4">
+                <div className="p-12 border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-2xl bg-white/50 dark:bg-slate-950/40 text-center space-y-4 my-8">
                   <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-400">
                     <Layers className="w-6 h-6" />
                   </div>
@@ -897,7 +1440,10 @@ export default function HomePage() {
                   </p>
                   {user.role !== "viewer" && (
                     <div className="pt-2">
-                      <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm shadow-sm transition-colors">
+                      <button
+                        onClick={() => { setIsWizardOpen(true); setWizardStep(1); }}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm shadow-sm transition-colors"
+                      >
                         <PlusCircle className="w-4 h-4" />
                         {t.createProject}
                       </button>
@@ -905,26 +1451,29 @@ export default function HomePage() {
                   )}
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 text-left">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {projects.map((p) => (
                     <div
                       key={p.id}
-                      className="p-5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm space-y-2 hover:border-indigo-500 transition-colors"
+                      className="p-5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm space-y-3 hover:border-indigo-500 transition-colors"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase">
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 uppercase">
                           {p.profile_id}
                         </span>
-                        <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium capitalize">
-                          {p.status}
+                        <span className="text-[11px] font-semibold text-slate-500 capitalize">
+                          Status: <strong className="text-indigo-600 dark:text-indigo-400">{p.status}</strong>
                         </span>
                       </div>
-                      <h3 className="font-semibold text-base text-slate-900 dark:text-white">
+                      <h3 className="font-semibold text-base text-slate-900 dark:text-white line-clamp-1">
                         {p.title}
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
                         {p.brief}
                       </p>
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-xs text-slate-500">
+                        <span>Pagu: {p.budget.toLocaleString()} {p.currency}</span>
+                      </div>
                     </div>
                   ))}
                 </div>

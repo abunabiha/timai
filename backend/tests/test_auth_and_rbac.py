@@ -1,10 +1,9 @@
 import pytest
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
-
 from conftest import TestSessionLocal
+from httpx import ASGITransport, AsyncClient
+
 from app.core.security import create_access_token, hash_password
-from app.db.models import ProjectProfile, User
+from app.db.models import User
 from app.main import app
 
 

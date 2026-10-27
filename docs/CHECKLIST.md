@@ -17,12 +17,12 @@
     - Admin bisa menambah penyedia, menguji koneksi, dan melihat daftar model.
     - Tes membuktikan: model aktual tercatat, fallback bekerja, kunci tidak bocor di log atau respons API.
 
-- [/] **Prompt 4: Brief, klarifikasi, katalog peran, Team Composer** [SEDANG DIKERJAKAN]
+- [x] **Prompt 4: Brief, klarifikasi, katalog peran, Team Composer**
   - Kriteria Selesai:
     - Alur dari brief sampai G1 berjalan di UI dan menghasilkan `team-charter.md`.
     - Mengubah model/tier di UI memperbarui estimasi biaya.
 
-- [ ] **Prompt 5: Meeting Engine: satu putaran + Titik Konfirmasi**
+- [/] **Prompt 5: Meeting Engine: satu putaran + Titik Konfirmasi** [SEDANG DIKERJAKAN]
   - Kriteria Selesai:
     - Demo: diskusi dengan 3 agen palsu -> sintesis -> PO memilih opsi B -> keputusan masuk Decision Log.
     - Semua tes lolos: satu putaran tepat satu kontribusi per peserta, tidak ada putaran kedua tanpa klik PO, restart worker di tengah diskusi tidak menggandakan kontribusi, plafon token menghentikan putaran.

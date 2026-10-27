@@ -1,5 +1,6 @@
 import time
 from typing import Any
+
 from app.gateway.base import BaseAdapter, ModelGatewayRequest, ModelGatewayResponse
 
 

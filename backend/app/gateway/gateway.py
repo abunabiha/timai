@@ -1,11 +1,12 @@
 import logging
 from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.crypto import decrypt_secret
-from app.db.models import Model, Provider, UsageRecord
+from app.db.models import Model, UsageRecord
 from app.gateway.adapters import AnthropicAdapter, GoogleAdapter, OpenAIAdapter, OpenRouterAdapter
 from app.gateway.base import BaseAdapter, ModelGatewayRequest, ModelGatewayResponse
 from app.gateway.fake import FakeProviderAdapter
@@ -102,7 +103,7 @@ class ModelGateway:
             cand_res = await db.execute(
                 select(Model)
                 .options(selectinload(Model.provider))
-                .where(Model.is_active == True, Model.id != primary_model.id)
+                .where(Model.is_active.is_(True), Model.id != primary_model.id)
             )
             candidates = cand_res.scalars().all()
             for cand in candidates:

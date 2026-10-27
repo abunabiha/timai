@@ -37,6 +37,8 @@ services:
       dockerfile: Dockerfile
     container_name: timai-backend
     restart: unless-stopped
+    volumes:
+      - ./backend:/app
     env_file:
       - .env
     environment:
@@ -58,6 +60,8 @@ services:
       dockerfile: Dockerfile
     container_name: timai-worker
     restart: unless-stopped
+    volumes:
+      - ./worker:/app
     env_file:
       - .env
     environment:
@@ -76,6 +80,10 @@ services:
       dockerfile: Dockerfile
     container_name: timai-frontend
     restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
     env_file:
       - .env
     ports:

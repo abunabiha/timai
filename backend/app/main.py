@@ -9,6 +9,7 @@ from app.api.auth import router as auth_router
 from app.api.models import router as models_router
 from app.api.projects import router as projects_router
 from app.api.providers import router as providers_router
+from app.api.roles import router as roles_router
 from app.core.config import settings
 from app.db.session import check_db_connection
 
@@ -33,6 +34,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
 app.include_router(providers_router, prefix="/api")
 app.include_router(models_router, prefix="/api")
+app.include_router(roles_router, prefix="/api")
 
 
 async def check_redis_connection() -> bool:
