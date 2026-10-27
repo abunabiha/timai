@@ -12,12 +12,12 @@
     - Tes hak akses lolos.
     - Halaman login dan wizard Admin berfungsi.
 
-- [ ] **Prompt 3: Model Gateway, katalog model, FakeProvider**
+- [x] **Prompt 3: Model Gateway, katalog model, FakeProvider**
   - Kriteria Selesai:
     - Admin bisa menambah penyedia, menguji koneksi, dan melihat daftar model.
     - Tes membuktikan: model aktual tercatat, fallback bekerja, kunci tidak bocor di log atau respons API.
 
-- [ ] **Prompt 4: Brief, klarifikasi, katalog peran, Team Composer**
+- [/] **Prompt 4: Brief, klarifikasi, katalog peran, Team Composer** [SEDANG DIKERJAKAN]
   - Kriteria Selesai:
     - Alur dari brief sampai G1 berjalan di UI dan menghasilkan `team-charter.md`.
     - Mengubah model/tier di UI memperbarui estimasi biaya.
