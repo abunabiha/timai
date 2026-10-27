@@ -1,6 +1,6 @@
 # Checklist Milestone TimAI (Prompt 1 - 10)
 
-- [ ] **Prompt 1: Kerangka proyek dan Docker Compose**
+- [x] **Prompt 1: Kerangka proyek dan Docker Compose**
   - Kriteria Selesai:
     - `docker compose up` menjalankan semua layanan tanpa error.
     - `/health` mengembalikan status database dan redis.
