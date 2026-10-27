@@ -51,3 +51,5 @@ backups/
 .idea/
 .DS_Store
 Thumbs.db
+commit_msg.txt
+

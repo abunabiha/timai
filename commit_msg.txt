@@ -1,1 +1,0 @@
-ci: setup github actions ci/cd pipeline and complete sdlc documentation suite
