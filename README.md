@@ -1,6 +1,30 @@
 # TimAI — Platform Tim AI Berbasis Scrum
 
+[![CI/CD Pipeline](https://github.com/abunabiha/timai/actions/workflows/ci.yml/badge.svg)](https://github.com/abunabiha/timai/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python: 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
+[![Next.js: 14](https://img.shields.io/badge/Next.js-14.2+-black.svg)](https://nextjs.org/)
+
 TimAI adalah platform perangkat lunak inovatif di mana pengguna bertindak sebagai **Product Owner (PO)** dan tugas-tugas diselesaikan oleh **tim agen AI otonom** melalui siklus terstruktur kerangka kerja Scrum (PRD TimAI v1.0).
+
+---
+
+## Dokumentasi Siklus Hidup Pengembangan Perangkat Lunak (SDLC)
+
+Setiap tahapan pengembangan sistem TimAI didokumentasikan secara komprehensif mengikuti standar ISO/IEC 12207:
+
+| Fase SDLC | Nama Dokumen | Fokus Utama |
+|---|---|---|
+| **Fase 1** | [01. Perencanaan & Kelayakan](docs/sdlc/01_PLANNING_AND_FEASIBILITY.md) | Visi, Analisis TELOS, Piagam Proyek, Roadmap WBS 10 Milestone |
+| **Fase 2** | [02. Analisis Kebutuhan (SRS)](docs/sdlc/02_REQUIREMENTS_SPECIFICATION.md) | Spesifikasi Fungsional (FR-1 s.d FR-14) & Non-Fungsional (NFR) |
+| **Fase 3** | [03. Perancangan Arsitektur](docs/sdlc/03_SYSTEM_DESIGN_AND_ARCHITECTURE.md) | Arsitektur Multi-Tier, ERD 24 Entitas, Enkripsi AES-256-GCM, API |
+| **Fase 4** | [04. Panduan Implementasi](docs/sdlc/04_IMPLEMENTATION_AND_DEVELOPMENT.md) | Standar Kode (Ruff/ESLint), Struktur Direktori, Alur Kerja Git |
+| **Fase 5** | [05. Pengujian & Mutu (STP/STR)](docs/sdlc/05_TESTING_AND_QUALITY_ASSURANCE.md) | Matriks 34 Kasus Uji, Uji E2E Scrum, Uji Ketahanan Crash Worker |
+| **Fase 6** | [06. Penerapan & DevOps](docs/sdlc/06_DEPLOYMENT_AND_DEVOPS.md) | Docker Compose 5 Container, Pipeline CI/CD GitHub Actions |
+| **Fase 7** | [07. Operasional & Pemeliharaan](docs/sdlc/07_OPERATIONS_AND_MAINTENANCE.md) | Runbook Pemulihan Bencana, Skrip Backup/Restore, Troubleshooting |
+
+Indeks lengkap SDLC dapat diakses pada [docs/sdlc/README.md](docs/sdlc/README.md).
 
 ---
 
