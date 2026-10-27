@@ -205,6 +205,34 @@ interface EpicWithItems {
   items: BacklogItem[];
 }
 
+interface SprintItem {
+  id: string;
+  project_id: string;
+  sprint_number: number;
+  sprint_goal: string;
+  start_date?: string;
+  end_date?: string;
+  budget_limit: number;
+  status: string;
+  velocity_achieved: number;
+  created_at: string;
+}
+
+interface BurndownItem {
+  day: string;
+  ideal: number;
+  actual: number;
+}
+
+interface BurndownData {
+  sprint_number: number;
+  total_planned_points: number;
+  completed_points: number;
+  remaining_points: number;
+  velocity_achieved: number;
+  burndown: BurndownItem[];
+}
+
 export default function HomePage() {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggleTheme } = useTheme();
@@ -215,7 +243,7 @@ export default function HomePage() {
   const [token, setToken] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "confirmations" | "teamRoom">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "confirmations" | "teamRoom" | "inception" | "kanban">("dashboard");
 
   // Providers & Models
   const [providers, setProviders] = useState<ProviderItem[]>([]);
@@ -293,6 +321,26 @@ export default function HomePage() {
   const [isAssembling, setIsAssembling] = useState(false);
   const [poG2Comments, setPoG2Comments] = useState("");
   const [g2Message, setG2Message] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Sprint & Kanban
+  const [selectedKanbanProjId, setSelectedKanbanProjId] = useState<string>("");
+  const [projectSprints, setProjectSprints] = useState<SprintItem[]>([]);
+  const [activeSprint, setActiveSprint] = useState<SprintItem | null>(null);
+  const [kanbanCols, setKanbanCols] = useState<Record<string, BacklogItem[]>>({
+    product_backlog: [],
+    sprint_backlog: [],
+    in_progress: [],
+    in_review: [],
+    waiting_po: [],
+    done: [],
+    blocked: [],
+  });
+  const [burndown, setBurndown] = useState<BurndownData | null>(null);
+  const [isSimulatingWork, setIsSimulatingWork] = useState(false);
+  const [dailyStandupResult, setDailyStandupResult] = useState<any>(null);
+  const [pbiReviewDecisions, setPbiReviewDecisions] = useState<Record<string, { decision: "accept" | "reject"; notes: string }>>({});
+  const [scrumMessage, setScrumMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [newPlanGoal, setNewPlanGoal] = useState("");
 
   // Check setup status and existing token
   useEffect(() => {
@@ -544,6 +592,188 @@ export default function HomePage() {
       });
       if (res.ok) {
         loadInceptionBacklog(selectedInceptionProjId, token);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const loadKanbanData = async (projId: string, authToken: string) => {
+    try {
+      const sprintsRes = await fetch(`http://localhost:8000/api/projects/${projId}/sprints`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (sprintsRes.ok) {
+        const sData = await sprintsRes.json();
+        setProjectSprints(sData);
+        const act = sData.find((s: any) => s.status === "active" || s.status === "review" || s.status === "paused") || sData[sData.length - 1];
+        setActiveSprint(act || null);
+        if (act) {
+          loadBurndown(act.id, authToken);
+        }
+      }
+
+      const kRes = await fetch(`http://localhost:8000/api/projects/${projId}/kanban`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (kRes.ok) {
+        const kData = await kRes.json();
+        setKanbanCols(kData.columns);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const loadBurndown = async (sprintId: string, authToken: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/sprints/${sprintId}/burndown`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const bData = await res.json();
+        setBurndown(bData);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handlePlanSprint = async (projId: string) => {
+    if (!token) return;
+    try {
+      const nextNumber = projectSprints.length + 1;
+      const res = await fetch(`http://localhost:8000/api/projects/${projId}/sprints/plan`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sprint_number: nextNumber,
+          sprint_goal: newPlanGoal || undefined,
+        }),
+      });
+      if (res.ok) {
+        setNewPlanGoal("");
+        setScrumMessage({ type: "success", text: `Sprint ${nextNumber} berhasil direncanakan dan diaktifkan!` });
+        loadKanbanData(projId, token);
+      } else {
+        const err = await res.json();
+        setScrumMessage({ type: "error", text: err.detail || "Gagal merencanakan sprint." });
+      }
+    } catch {
+      setScrumMessage({ type: "error", text: "Terjadi kesalahan jaringan." });
+    }
+  };
+
+  const handleSimulateSprint = async (sprintId: string) => {
+    if (!token) return;
+    setIsSimulatingWork(true);
+    try {
+      const res = await fetch(`http://localhost:8000/api/sprints/${sprintId}/simulate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setScrumMessage({ type: "success", text: "Eksekusi simulasi selesai. PBI kini berada pada status Review untuk peninjauan PO (G3)." });
+        loadKanbanData(selectedKanbanProjId, token);
+      }
+    } finally {
+      setIsSimulatingWork(false);
+    }
+  };
+
+  const handleDailyStandup = async (sprintId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/sprints/${sprintId}/daily`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDailyStandupResult(data);
+        setScrumMessage({ type: "success", text: `Laporan Daily Standup tanggal ${data.date} berhasil diterbitkan di workspace.` });
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleSprintReviewG3 = async (sprintId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/sprints/${sprintId}/review`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decisions: pbiReviewDecisions }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setScrumMessage({
+          type: "success",
+          text: `Sprint Review G3 selesai: ${data.accepted_count} PBI diterima (${data.velocity_achieved} poin velocity), ${data.rejected_count} PBI ditolak dan kembali ke Backlog.`,
+        });
+        loadKanbanData(selectedKanbanProjId, token);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleSprintRetro = async (sprintId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/sprints/${sprintId}/retro`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action_item: "Perkuat koordinasi antar-agen sebelum draf diserahkan." }),
+      });
+      if (res.ok) {
+        setScrumMessage({ type: "success", text: "Retrospektif selesai! Catatan dan usulan pelajaran telah dicatat." });
+        loadKanbanData(selectedKanbanProjId, token);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleSprintControl = async (sprintId: string, action: "pause" | "resume" | "cancel") => {
+    if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/sprints/${sprintId}/${action}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setScrumMessage({ type: "success", text: `Sprint berhasil di-${action}.` });
+        loadKanbanData(selectedKanbanProjId, token);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleMoveKanbanCard = async (itemId: string, newStatus: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/backlog/${itemId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        loadKanbanData(selectedKanbanProjId, token);
       }
     } catch {
       // Ignored
@@ -1069,6 +1299,24 @@ export default function HomePage() {
                 }`}
               >
                 <Compass className="w-4 h-4" /> {t.inceptionTab}
+              </span>
+              <span
+                onClick={() => {
+                  setActiveTab("kanban");
+                  setIsWizardOpen(false);
+                  if (projects.length > 0) {
+                    const targetId = selectedKanbanProjId || projects[0].id;
+                    setSelectedKanbanProjId(targetId);
+                    loadKanbanData(targetId, token!);
+                  }
+                }}
+                className={`cursor-pointer flex items-center gap-1.5 transition-colors ${
+                  activeTab === "kanban"
+                    ? "text-indigo-600 dark:text-indigo-400 font-semibold"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <Layers className="w-4 h-4" /> {t.kanbanTab}
               </span>
               <span className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer flex items-center gap-1.5">
                 <BookOpen className="w-4 h-4" /> {t.systemLearning}
@@ -2488,6 +2736,363 @@ export default function HomePage() {
               </div>
             )}
           </div>
+        ) : activeTab === "kanban" ? (
+          // ==================== KANBAN & SPRINT ENGINE ====================
+          <div className="space-y-6">
+            {/* Header & Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 mb-2">
+                  <Layers className="w-3.5 h-3.5" />
+                  Scrum Engine: Kanban & Manajemen Sprint
+                </div>
+                <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                  Papan Kanban & Eksekusi Sprint
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Pantau alur kerja agen, Daily Standup, pengujian DoD, review increment G3, dan retrospektif.
+                </p>
+              </div>
+
+              {projects.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">Pilih Proyek:</span>
+                  <select
+                    value={selectedKanbanProjId}
+                    onChange={(e) => {
+                      const pid = e.target.value;
+                      setSelectedKanbanProjId(pid);
+                      if (token) loadKanbanData(pid, token);
+                    }}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium"
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title} ({p.profile_id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Notification alert */}
+            {scrumMessage && (
+              <div
+                className={`p-4 rounded-xl border flex items-center justify-between text-xs ${
+                  scrumMessage.type === "success"
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
+                    : "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-800 dark:text-red-200"
+                }`}
+              >
+                <span>{scrumMessage.text}</span>
+                <button onClick={() => setScrumMessage(null)} className="font-bold ml-4">
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {!selectedKanbanProjId ? (
+              <div className="p-8 text-center text-slate-400 text-xs">
+                Silakan pilih proyek terlebih dahulu.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Sprint Action & Status Bar */}
+                <div className="p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                          {activeSprint ? `Sprint ${String(activeSprint.sprint_number).padStart(2, "0")}` : "Belum Ada Sprint Aktif"}
+                        </span>
+                        {activeSprint && (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            activeSprint.status === "active"
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              : activeSprint.status === "review"
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                              : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300"
+                          }`}>
+                            {activeSprint.status}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-1">
+                        Goal: <strong className="text-slate-700 dark:text-slate-300">{activeSprint?.sprint_goal || "Direncanakan oleh Product Owner dan Scrum Master"}</strong>
+                      </p>
+                    </div>
+
+                    {user.role !== "viewer" && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(!activeSprint || activeSprint.status === "completed" || activeSprint.status === "cancelled") ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={newPlanGoal}
+                              onChange={(e) => setNewPlanGoal(e.target.value)}
+                              placeholder="Sprint Goal (opsional)..."
+                              className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 w-48 sm:w-64"
+                            />
+                            <button
+                              onClick={() => handlePlanSprint(selectedKanbanProjId)}
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors"
+                            >
+                              Rencanakan Sprint Baru
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleDailyStandup(activeSprint.id)}
+                              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
+                            >
+                              Laporan Daily Standup
+                            </button>
+                            <button
+                              onClick={() => handleSimulateSprint(activeSprint.id)}
+                              disabled={isSimulatingWork}
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
+                            >
+                              {isSimulatingWork ? "Mensimulasikan..." : "Simulasi Eksekusi Kerja"}
+                            </button>
+                            {activeSprint.status === "review" && (
+                              <button
+                                onClick={() => handleSprintRetro(activeSprint.id)}
+                                className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition-colors"
+                              >
+                                Jalankan Retro
+                              </button>
+                            )}
+                            {activeSprint.status === "active" ? (
+                              <button
+                                onClick={() => handleSprintControl(activeSprint.id, "pause")}
+                                className="px-2.5 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 text-xs font-medium"
+                              >
+                                Jeda
+                              </button>
+                            ) : activeSprint.status === "paused" ? (
+                              <button
+                                onClick={() => handleSprintControl(activeSprint.id, "resume")}
+                                className="px-2.5 py-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 text-xs font-medium"
+                              >
+                                Lanjut
+                              </button>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Review G3 Decision Box if Sprint is in Review */}
+                  {activeSprint?.status === "review" && user.role !== "viewer" && (
+                    <div className="p-4 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-amber-900 dark:text-amber-200">
+                          Sprint Review (Gerbang G3): Tinjau dan Putuskan PBI
+                        </span>
+                        <button
+                          onClick={() => handleSprintReviewG3(activeSprint.id)}
+                          className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm transition-colors"
+                        >
+                          Kunci Keputusan G3 (Terima / Tolak)
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {kanbanCols["in_review"]?.map((pbi) => (
+                          <div
+                            key={pbi.id}
+                            className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-amber-200 dark:border-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                          >
+                            <div>
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                {pbi.title}
+                              </span>{" "}
+                              <span className="text-[10px] text-slate-400">({pbi.story_points} Poin)</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <select
+                                value={pbiReviewDecisions[pbi.id]?.decision || "accept"}
+                                onChange={(e) =>
+                                  setPbiReviewDecisions((prev) => ({
+                                    ...prev,
+                                    [pbi.id]: {
+                                      decision: e.target.value as "accept" | "reject",
+                                      notes: prev[pbi.id]?.notes || "",
+                                    },
+                                  }))
+                                }
+                                className="px-2 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium"
+                              >
+                                <option value="accept">Terima PBI (Done)</option>
+                                <option value="reject">Tolak PBI (Kembali ke Backlog)</option>
+                              </select>
+                              <input
+                                type="text"
+                                placeholder="Catatan review..."
+                                value={pbiReviewDecisions[pbi.id]?.notes || ""}
+                                onChange={(e) =>
+                                  setPbiReviewDecisions((prev) => ({
+                                    ...prev,
+                                    [pbi.id]: {
+                                      decision: prev[pbi.id]?.decision || "accept",
+                                      notes: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="px-2 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 w-44"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Burndown & Velocity Metrics Cards */}
+                {burndown && (
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <span className="text-xs text-slate-500 font-medium">Velocity Tercapai</span>
+                      <p className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">
+                        {burndown.velocity_achieved} Poin
+                      </p>
+                      <span className="text-[11px] text-slate-400">Poin PBI yang disetujui PO</span>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <span className="text-xs text-slate-500 font-medium">Poin Selesai</span>
+                      <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
+                        {burndown.completed_points} / {burndown.total_planned_points} Poin
+                      </p>
+                      <span className="text-[11px] text-slate-400">Kemajuan pekerjaan sprint</span>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <span className="text-xs text-slate-500 font-medium">Sisa Poin Backlog</span>
+                      <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
+                        {burndown.remaining_points} Poin
+                      </p>
+                      <span className="text-[11px] text-slate-400">Estimasi sisa pekerjaan</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Burndown Data Table */}
+                {burndown && burndown.burndown.length > 0 && (
+                  <div className="p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <h3 className="font-bold text-xs text-slate-800 dark:text-slate-200 mb-3">
+                      Burndown Sprint (Ideal vs Aktual)
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-medium">
+                            <th className="pb-2">Garis Metrik</th>
+                            {burndown.burndown.map((b) => (
+                              <th key={b.day} className="pb-2 text-center">{b.day}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                          <tr>
+                            <td className="py-2 font-semibold text-slate-500">Ideal</td>
+                            {burndown.burndown.map((b, i) => (
+                              <td key={i} className="py-2 text-center text-slate-400">{b.ideal}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td className="py-2 font-semibold text-indigo-600 dark:text-indigo-400">Aktual</td>
+                            {burndown.burndown.map((b, i) => (
+                              <td key={i} className="py-2 text-center font-bold text-indigo-600 dark:text-indigo-400">{b.actual}</td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Kanban 7 Columns */}
+                <div>
+                  <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3">
+                    Papan Kanban 7 Kolom (FR-10.1)
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-3 overflow-x-auto pb-4">
+                    {[
+                      { key: "product_backlog", label: "Product Backlog", color: "bg-slate-100 dark:bg-slate-900 border-slate-300" },
+                      { key: "sprint_backlog", label: "Sprint Backlog", color: "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200" },
+                      { key: "in_progress", label: "In Progress", color: "bg-blue-50/50 dark:bg-blue-950/20 border-blue-200" },
+                      { key: "in_review", label: "In Review", color: "bg-amber-50/50 dark:bg-amber-950/20 border-amber-200" },
+                      { key: "waiting_po", label: "Waiting PO", color: "bg-purple-50/50 dark:bg-purple-950/20 border-purple-200" },
+                      { key: "done", label: "Done", color: "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200" },
+                      { key: "blocked", label: "Blocked", color: "bg-red-50/50 dark:bg-red-950/20 border-red-200" },
+                    ].map((col) => {
+                      const items = kanbanCols[col.key] || [];
+                      return (
+                        <div
+                          key={col.key}
+                          className={`rounded-xl border p-3 min-h-[300px] flex flex-col space-y-2 ${col.color} dark:border-slate-800`}
+                        >
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+                            <span className="font-bold text-[11px] text-slate-700 dark:text-slate-300">
+                              {col.label}
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                              {items.length}
+                            </span>
+                          </div>
+
+                          <div className="flex-1 space-y-2 overflow-y-auto max-h-[500px]">
+                            {items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 hover:border-indigo-400 transition-colors"
+                              >
+                                <div className="flex items-start justify-between gap-1">
+                                  <h4 className="font-semibold text-xs text-slate-800 dark:text-slate-200 line-clamp-2">
+                                    {item.title}
+                                  </h4>
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+                                    {item.story_points}p
+                                  </span>
+                                </div>
+
+                                {item.is_po_task && (
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+                                    Tugas PO
+                                  </span>
+                                )}
+
+                                {user.role !== "viewer" && (
+                                  <div className="pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[10px]">
+                                    <span className="text-slate-400">Pindah:</span>
+                                    <select
+                                      value={item.status}
+                                      onChange={(e) => handleMoveKanbanCard(item.id, e.target.value)}
+                                      className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[10px]"
+                                    >
+                                      <option value="product_backlog">Backlog</option>
+                                      <option value="sprint_backlog">Sprint B.</option>
+                                      <option value="in_progress">Progress</option>
+                                      <option value="in_review">Review</option>
+                                      <option value="waiting_po">Wait PO</option>
+                                      <option value="done">Done</option>
+                                      <option value="blocked">Blocked</option>
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           // ==================== DASHBOARD HOME ====================
           <div className="space-y-6">
@@ -2574,6 +3179,16 @@ export default function HomePage() {
                         className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 font-medium text-xs transition-colors"
                       >
                         <Compass className="w-3.5 h-3.5" /> Tinjau Inception & Rencana (G2)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedKanbanProjId(p.id);
+                          setActiveTab("kanban");
+                          if (token) loadKanbanData(p.id, token);
+                        }}
+                        className="w-full mt-1.5 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 font-medium text-xs transition-colors"
+                      >
+                        <Layers className="w-3.5 h-3.5 text-indigo-500" /> Buka Kanban & Sprint
                       </button>
                     </div>
                   ))}

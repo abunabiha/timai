@@ -32,13 +32,12 @@
     - Dari proyek proposal sampai G2 dengan FakeProvider: semua berkas keluaran ada di workspace dengan metadata benar.
     - Mengubah urutan Product Backlog hanya bisa dilakukan PO.
 
-- [/] **Prompt 7: Scrum Engine dan Kanban** [SEDANG DIKERJAKAN]
+- [x] **Prompt 7: Scrum Engine dan Kanban**
   - Kriteria Selesai:
     - Simulasi satu sprint penuh: Planning -> Eksekusi (palsu) -> Review -> Retro, dengan G3 menolak satu PBI dan PBI itu kembali ke backlog.
     - Burndown dan velocity terhitung benar pada data simulasi.
 
-
-- [ ] **Prompt 8: Eksekusi agen, review silang, penjaga anggaran**
+- [/] **Prompt 8: Eksekusi agen, review silang, penjaga anggaran** [SEDANG DIKERJAKAN]
   - Kriteria Selesai:
     - Satu proyek proposal berjalan end-to-end memakai FakeProvider dengan hasil artefak, review, dan penghentian anggaran yang terverifikasi.
     - Uji manual singkat dengan satu model nyata murah (tier low) pada satu Task.

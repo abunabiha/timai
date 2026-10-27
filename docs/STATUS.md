@@ -32,4 +32,10 @@
 - **Perintah menjalankan**: Uji via `docker compose exec -T backend pytest` atau `make test`, dan akses tab Inception di web `http://localhost:3001`.
 - **Hal yang belum**: Scrum Engine dan Kanban (Sprint Planning, Sprint Backlog, Daily Standup report, Sprint Review G3 terima/tolak PBI, Retrospective usulan pelajaran, Burndown & Velocity) (dikerjakan di Milestone 7).
 
+## Milestone 7: Scrum Engine dan Kanban
+- **Apa yang jadi**: Mesin Scrum lengkap yang mencakup Sprint Planning dengan penguncian Sprint Goal dan pemecahan PBI menjadi Task ber-DoD (`sprint-NN/sprint-plan.md`), laporan Daily Standup otomatis per agen yang dirangkum Scrum Master (`sprint-NN/daily/YYYY-MM-DD.md`), simulasi eksekusi kerja agen, Sprint Review (Gerbang G3) dengan keputusan terima/tolak per PBI di mana PBI yang ditolak dikembalikan secara aman ke Product Backlog, penerbitan paket review dan laporan sprint (`review.md`, `laporan-sprint.md`), Sprint Retrospective satu putaran yang mencatat usulan pelajaran ke tabel Lesson dan `retro.md`, metrik Burndown dan kalkulasi Velocity, kendali jeda/lanjut/batal sprint oleh PO, serta antarmuka Papan Kanban 7 kolom interaktif.
+- **Perintah menjalankan**: Uji via `docker compose exec -T backend pytest` atau `make test`, dan akses tab Papan Kanban & Sprint di web `http://localhost:3001`.
+- **Hal yang belum**: Eksekusi agen sesungguhnya (Agent Runtime API, loop model + least privilege tools, review silang wajib, perbaikan otomatis maks 1 kali, dan Budget Guard pembatas anggaran 50%/80%/100%) (dikerjakan di Milestone 8).
+
+
 
