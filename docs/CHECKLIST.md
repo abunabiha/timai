@@ -6,7 +6,7 @@
     - `/health` mengembalikan status database dan redis.
     - `make test` dan `make lint` lolos (minimal satu tes per layanan).
 
-- [ ] **Prompt 2: Model data, autentikasi, peran pengguna**
+- [x] **Prompt 2: Model data, autentikasi, peran pengguna**
   - Kriteria Selesai:
     - Migrasi naik dan turun bersih.
     - Tes hak akses lolos.

@@ -1,7 +1,6 @@
 // Test script for frontend integrity and i18n
 const assert = require("assert");
 
-// Mock React imports for testing dictionary directly
 const idTranslations = {
   appName: "TimAI",
   tagline: "Platform Tim Agen AI Berbasis Scrum",
@@ -18,6 +17,22 @@ const idTranslations = {
   emptyStateTitle: "Belum Ada Proyek Aktif",
   emptyStateDesc: "Mulai perjalanan Anda dengan memberikan brief proyek baru. Sistem akan mengusulkan tim agen AI terbaik untuk Anda.",
   createProject: "Buat Proyek Baru",
+  loginTitle: "Masuk ke TimAI",
+  loginSubtitle: "Gunakan akun Admin, Product Owner, atau Viewer Anda.",
+  setupAdminTitle: "Inisialisasi Akun Admin",
+  setupAdminSubtitle: "Selamat datang di instalasi baru TimAI. Silakan buat akun Administrator pertama untuk mengelola sistem.",
+  nameLabel: "Nama Lengkap",
+  emailLabel: "Alamat Email",
+  passwordLabel: "Kata Sandi",
+  loginButton: "Masuk",
+  setupButton: "Buat Akun Admin & Mulai",
+  logoutButton: "Keluar",
+  roleAdmin: "Administrator",
+  rolePO: "Product Owner",
+  roleViewer: "Viewer",
+  loggedInAs: "Masuk sebagai",
+  invalidCredentials: "Email atau kata sandi tidak valid.",
+  setupSuccess: "Akun Administrator berhasil dibuat!",
 };
 
 const enTranslations = {
@@ -36,6 +51,22 @@ const enTranslations = {
   emptyStateTitle: "No Active Projects",
   emptyStateDesc: "Start your journey by submitting a new project brief. The system will compose the best AI agent team for you.",
   createProject: "Create New Project",
+  loginTitle: "Log In to TimAI",
+  loginSubtitle: "Use your Admin, Product Owner, or Viewer account.",
+  setupAdminTitle: "Admin Account Setup",
+  setupAdminSubtitle: "Welcome to your new TimAI installation. Create the first Administrator account to manage the platform.",
+  nameLabel: "Full Name",
+  emailLabel: "Email Address",
+  passwordLabel: "Password",
+  loginButton: "Log In",
+  setupButton: "Create Admin & Start",
+  logoutButton: "Log Out",
+  roleAdmin: "Administrator",
+  rolePO: "Product Owner",
+  roleViewer: "Viewer",
+  loggedInAs: "Logged in as",
+  invalidCredentials: "Invalid email or password.",
+  setupSuccess: "Administrator account created successfully!",
 };
 
 function runTests() {
@@ -56,7 +87,7 @@ function runTests() {
   assert.strictEqual(idTranslations.appName, "TimAI");
   assert.strictEqual(enTranslations.appName, "TimAI");
 
-  console.log("All frontend tests passed successfully! (14/14 translation keys validated)");
+  console.log(`All frontend tests passed successfully! (${idKeys.length}/${idKeys.length} translation keys validated)`);
 }
 
 runTests();

@@ -5,19 +5,26 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 
 from alembic import context
+from app.db.models import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = None
+target_metadata = Base.metadata
 
-# Allow overriding database URL from environment variable
-database_url = os.getenv("SYNC_DATABASE_URL", "postgresql://postgres:postgres@postgres:5432/timai")
-if database_url.startswith("postgresql+asyncpg://"):
-    database_url = database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
-config.set_main_option("sqlalchemy.url", database_url)
+# Determine database URL: prioritize config option, fallback to environment
+db_url = config.get_main_option("sqlalchemy.url")
+if not db_url:
+    db_url = os.getenv("SYNC_DATABASE_URL", "postgresql://postgres:postgres@postgres:5432/timai")
+
+if db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+elif db_url.startswith("postgresql+asyncpg://"):
+    db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+
+config.set_main_option("sqlalchemy.url", db_url)
 
 
 def run_migrations_offline() -> None:
