@@ -21,3 +21,9 @@
 - **Apa yang jadi**: Formulir intake brief dengan kolom profil khusus dan ekstraksi lampiran (PDF, DOCX, CSV, BibTeX), wawancara klarifikasi agen Analis (maks. 7 pertanyaan dengan pencatatan asumsi ke `00-brief/klarifikasi.md`), katalog lengkap RoleTemplate 25 peran lintas 5 profil proyek, Team Composer berbasis PRD Bagian 10 dengan rekomendasi tim, pembaruan seketika estimasi biaya/durasi saat tier/model diubah, validasi keberadaan reviewer, serta persetujuan gerbang G1 yang membuat entitas Agent, Gate G1, workspace Git sesuai struktur PRD 5.2c, dan penerbitan `01-tim/team-charter.md` berformat metadata PRD 5.2d.
 - **Perintah menjalankan**: Uji via `make test` dan `make lint`, atau buka wizard Buat Proyek Baru di UI `http://localhost:3001`.
 - **Hal yang belum**: Meeting Engine (satu putaran, state machine diskusi di Postgres, sintesis Scrum Master, Titik Konfirmasi PO, SSE/WebSocket) (dikerjakan di Milestone 5).
+
+## Milestone 5: Meeting Engine, Satu Putaran, Titik Konfirmasi
+- **Apa yang jadi**: Engine diskusi Scrum terstruktur dengan penegakan aturan tepat satu putaran bicara per peserta (maksimal 400 kata), penghentian otomatis saat plafon token tercapai, sintesis ringkas Scrum Master beserta usulan opsi keputusan (A/B), penanganan Titik Konfirmasi oleh PO (pemberian pilihan opsi tunggal atau batch), pencatatan otomatis ke `02-inception/decision-log.md` dan `notulen/agenda-NN.md`, SSE streaming untuk event diskusi, serta UI Kotak Konfirmasi dan Ruang Tim.
+- **Perintah menjalankan**: Uji via `make test` dan `make lint`, atau buka menu Ruang Tim dan Kotak Konfirmasi di antarmuka web `http://localhost:3001`.
+- **Hal yang belum**: Alur Inception lengkap (agenda otomatis per profil Proposal/Jurnal, perakitan dokumen Inception, ekstraksi Product Backlog/Epics/DoD/Rencana Rilis/Risiko, gerbang G2, dan ekspor DOCX/PDF) (dikerjakan di Milestone 6).
+

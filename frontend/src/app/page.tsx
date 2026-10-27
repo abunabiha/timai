@@ -26,10 +26,11 @@ import {
   ArrowRight,
   Sparkles,
   FileText,
-  DollarSign,
-  Clock,
   Shield,
-  Upload,
+  Play,
+  Check,
+  Clock,
+  Compass,
 } from "lucide-react";
 
 interface UserProfile {
@@ -98,6 +99,55 @@ interface TeamAgent {
   reason: string;
 }
 
+interface ConfirmationItem {
+  id: string;
+  discussion_id: string;
+  options: any[];
+  selected_option?: string;
+  po_feedback?: string;
+  created_at: string;
+  discussion?: {
+    agenda: string;
+    round_number: number;
+    synthesis?: any;
+    project?: {
+      id: string;
+      title: string;
+    };
+  };
+}
+
+interface ContributionItem {
+  id: string;
+  agent_id?: string;
+  round_number: number;
+  content: string;
+  token_count: number;
+  created_at: string;
+}
+
+interface DiscussionItem {
+  id: string;
+  project_id: string;
+  agenda: string;
+  round_number: number;
+  status: string;
+  synthesis?: any;
+  cost: number;
+  contributions: ContributionItem[];
+  confirmations: ConfirmationItem[];
+}
+
+interface DecisionItem {
+  id: string;
+  project_id: string;
+  summary: string;
+  rationale: string;
+  alternatives: any[];
+  decided_by: string;
+  created_at: string;
+}
+
 export default function HomePage() {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggleTheme } = useTheme();
@@ -108,15 +158,15 @@ export default function HomePage() {
   const [token, setToken] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "confirmations" | "teamRoom">("dashboard");
 
-  // Providers and Models
+  // Providers & Models
   const [providers, setProviders] = useState<ProviderItem[]>([]);
   const [models, setModels] = useState<ModelItem[]>([]);
   const [providerTestResults, setProviderTestResults] = useState<Record<string, { success: boolean; message: string; latency?: number }>>({});
   const [modelHealthResults, setModelHealthResults] = useState<Record<string, { is_healthy: boolean; message: string }>>({});
 
-  // Auth Form states
+  // Auth Form
   const [adminName, setAdminName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -139,12 +189,12 @@ export default function HomePage() {
   const [modOutputPrice, setModOutputPrice] = useState(0.002);
   const [isAddingModel, setIsAddingModel] = useState(false);
 
-  // Project Creation & Team Composer Wizard states
+  // Project Creation Wizard
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
   const [currentProjId, setCurrentProjId] = useState<string>("");
 
-  // Step 1: Brief states
+  // Step 1: Brief
   const [pTitle, setPTitle] = useState("");
   const [pProfile, setPProfile] = useState("proposal");
   const [pBrief, setPBrief] = useState("");
@@ -152,7 +202,7 @@ export default function HomePage() {
   const [pScheme, setPScheme] = useState("Fundamental");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // Step 2: Clarification questions
+  // Step 2: Clarification
   const [clarifyQuestions, setClarifyQuestions] = useState<ClarificationQ[]>([]);
 
   // Step 3: Team Composer
@@ -164,6 +214,18 @@ export default function HomePage() {
 
   // Step 4: Approved Team
   const [approvedResult, setApprovedResult] = useState<any>(null);
+
+  // Kotak Konfirmasi (Pending Confirmations)
+  const [pendingConfirmations, setPendingConfirmations] = useState<ConfirmationItem[]>([]);
+  const [poDirectionInputs, setPoDirectionInputs] = useState<Record<string, string>>({});
+
+  // Ruang Tim (Team Room)
+  const [selectedRoomProjId, setSelectedRoomProjId] = useState<string>("");
+  const [roomDiscussions, setRoomDiscussions] = useState<DiscussionItem[]>([]);
+  const [activeDiscussion, setActiveDiscussion] = useState<DiscussionItem | null>(null);
+  const [newAgendaTitle, setNewAgendaTitle] = useState("");
+  const [projectDecisions, setProjectDecisions] = useState<DecisionItem[]>([]);
+  const [isRunningRound, setIsRunningRound] = useState(false);
 
   // Check setup status and existing token
   useEffect(() => {
@@ -193,6 +255,7 @@ export default function HomePage() {
             setToken(savedToken);
             loadProjects(savedToken);
             loadProvidersAndModels(savedToken);
+            loadConfirmations(savedToken);
           } else {
             localStorage.removeItem("timai_token");
           }
@@ -215,6 +278,10 @@ export default function HomePage() {
       if (res.ok) {
         const data = await res.json();
         setProjects(data);
+        if (data.length > 0 && !selectedRoomProjId) {
+          setSelectedRoomProjId(data[0].id);
+          loadRoomData(data[0].id, authToken);
+        }
       }
     } catch {
       // Ignored
@@ -240,6 +307,34 @@ export default function HomePage() {
       if (modRes.ok) {
         const mData = await modRes.json();
         setModels(mData);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const loadConfirmations = async (authToken: string) => {
+    try {
+      const res = await fetch("http://localhost:8000/api/confirmations", {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPendingConfirmations(data);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const loadRoomData = async (projId: string, authToken: string) => {
+    try {
+      const decRes = await fetch(`http://localhost:8000/api/confirmations/projects/${projId}/decisions`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (decRes.ok) {
+        const decData = await decRes.json();
+        setProjectDecisions(decData);
       }
     } catch {
       // Ignored
@@ -291,6 +386,7 @@ export default function HomePage() {
         setUser(data.user);
         loadProjects(data.access_token);
         loadProvidersAndModels(data.access_token);
+        loadConfirmations(data.access_token);
       } else {
         setErrorMsg(t.invalidCredentials);
       }
@@ -308,7 +404,7 @@ export default function HomePage() {
     setProjects([]);
   };
 
-  // --- Step 1: Create Brief & Upload Attachment ---
+  // Brief creation
   const handleCreateBrief = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
@@ -341,7 +437,6 @@ export default function HomePage() {
       const proj = await res.json();
       setCurrentProjId(proj.id);
 
-      // Upload attachment if present
       if (selectedFile) {
         const formData = new FormData();
         formData.append("file", selectedFile);
@@ -352,7 +447,6 @@ export default function HomePage() {
         });
       }
 
-      // Fetch Clarification questions
       const clarRes = await fetch(`http://localhost:8000/api/projects/${proj.id}/clarify`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -369,7 +463,7 @@ export default function HomePage() {
     }
   };
 
-  // --- Step 2: Submit Clarification Answers ---
+  // Submit clarification
   const handleSubmitClarification = async () => {
     if (!token || !currentProjId) return;
     setIsSubmitting(true);
@@ -390,7 +484,6 @@ export default function HomePage() {
         }),
       });
 
-      // Load proposed team from Team Composer
       const compRes = await fetch(`http://localhost:8000/api/projects/${currentProjId}/compose-team?package=balanced`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -411,7 +504,7 @@ export default function HomePage() {
     }
   };
 
-  // --- Step 3: Dynamic Recalculate Estimates ---
+  // Dynamic recalculation
   const handleAgentTierOrModelChange = async (index: number, field: "tier" | "model_id", value: string) => {
     const updated = [...proposedAgents];
     updated[index] = { ...updated[index], [field]: value };
@@ -442,7 +535,7 @@ export default function HomePage() {
     }
   };
 
-  // --- Step 3: Approve Team G1 ---
+  // Approve G1
   const handleApproveTeamG1 = async () => {
     if (!token || !currentProjId) return;
     setIsSubmitting(true);
@@ -468,6 +561,111 @@ export default function HomePage() {
       setErrorMsg("Gagal menyetujui tim");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Decision point actions
+  const handleDecide = async (
+    confId: string,
+    action: "approve_proposed" | "choose_option" | "redirect" | "continue_discussion",
+    selectedOption?: string,
+  ) => {
+    if (!token) return;
+    const poNotes = poDirectionInputs[confId] || "";
+    try {
+      const res = await fetch(`http://localhost:8000/api/confirmations/${confId}/decide`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action,
+          selected_option: selectedOption,
+          po_notes: poNotes,
+        }),
+      });
+      if (res.ok) {
+        loadConfirmations(token);
+        if (selectedRoomProjId) {
+          loadRoomData(selectedRoomProjId, token);
+        }
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleBatchApprove = async () => {
+    if (!token || pendingConfirmations.length === 0) return;
+    try {
+      const decisions = pendingConfirmations.map((c) => ({
+        confirmation_id: c.id,
+        action: "approve_proposed",
+      }));
+      const res = await fetch("http://localhost:8000/api/confirmations/batch-decide", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decisions }),
+      });
+      if (res.ok) {
+        loadConfirmations(token);
+        if (selectedRoomProjId) {
+          loadRoomData(selectedRoomProjId, token);
+        }
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  // Ruang Tim actions
+  const handleCreateNewDiscussion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !selectedRoomProjId || !newAgendaTitle.trim()) return;
+    try {
+      const res = await fetch("http://localhost:8000/api/discussions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          project_id: selectedRoomProjId,
+          agenda: newAgendaTitle,
+          discussion_type: "inception",
+        }),
+      });
+      if (res.ok) {
+        const disc = await res.json();
+        setActiveDiscussion(disc);
+        setNewAgendaTitle("");
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleRunSingleRound = async (discId: string) => {
+    if (!token) return;
+    setIsRunningRound(true);
+    try {
+      const res = await fetch(`http://localhost:8000/api/discussions/${discId}/start`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const disc = await res.json();
+        setActiveDiscussion(disc);
+        loadConfirmations(token);
+      }
+    } catch {
+      // Ignored
+    } finally {
+      setIsRunningRound(false);
     }
   };
 
@@ -620,10 +818,29 @@ export default function HomePage() {
               >
                 <Layers className="w-4 h-4" /> {t.dashboard}
               </span>
-              <span className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer flex items-center gap-1.5">
+              <span
+                onClick={() => { setActiveTab("confirmations"); setIsWizardOpen(false); loadConfirmations(token!); }}
+                className={`cursor-pointer flex items-center gap-1.5 transition-colors ${
+                  activeTab === "confirmations"
+                    ? "text-indigo-600 dark:text-indigo-400 font-semibold"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
                 <CheckSquare className="w-4 h-4" /> {t.confirmations}
+                {pendingConfirmations.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                    {pendingConfirmations.length}
+                  </span>
+                )}
               </span>
-              <span className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer flex items-center gap-1.5">
+              <span
+                onClick={() => { setActiveTab("teamRoom"); setIsWizardOpen(false); }}
+                className={`cursor-pointer flex items-center gap-1.5 transition-colors ${
+                  activeTab === "teamRoom"
+                    ? "text-indigo-600 dark:text-indigo-400 font-semibold"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
                 <MessageSquare className="w-4 h-4" /> {t.teamRoom}
               </span>
               <span className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer flex items-center gap-1.5">
@@ -645,7 +862,6 @@ export default function HomePage() {
           )}
 
           <div className="flex items-center space-x-3">
-            {/* User badge */}
             {user && (
               <div className="flex items-center gap-2 pr-2 border-r border-slate-200 dark:border-slate-800">
                 <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs font-semibold">
@@ -667,7 +883,6 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* Language Switcher */}
             <button
               onClick={() => setLocale(locale === "id" ? "en" : "id")}
               className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center gap-1 text-xs font-semibold"
@@ -677,7 +892,6 @@ export default function HomePage() {
               <span>{locale.toUpperCase()}</span>
             </button>
 
-            {/* Dark/Light Mode Switcher */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
@@ -694,7 +908,7 @@ export default function HomePage() {
         {isLoading ? (
           <div className="text-center py-20 text-slate-400">Loading TimAI...</div>
         ) : !user ? (
-          // AUTH & WIZARD SCREEN
+          // ==================== AUTH & LOGIN ====================
           <div className="max-w-md w-full mx-auto space-y-6 my-auto">
             <div className="text-center space-y-2">
               <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-bold text-2xl shadow-md">
@@ -709,7 +923,7 @@ export default function HomePage() {
             </div>
 
             {errorMsg && (
-              <div className="p-3 text-xs rounded-lg bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 text-center">
+              <div className="p-3 text-xs rounded-lg bg-red-50 dark:bg-red-950/60 border border-red-200 text-red-600 text-center">
                 {errorMsg}
               </div>
             )}
@@ -805,7 +1019,6 @@ export default function HomePage() {
         ) : isWizardOpen ? (
           // ==================== PROJECT CREATION & TEAM COMPOSER WIZARD ====================
           <div className="max-w-4xl w-full mx-auto space-y-6">
-            {/* Wizard Stepper Header */}
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
               <div className="flex items-center space-x-2 sm:space-x-4 text-xs font-semibold">
                 <span className={`px-3 py-1 rounded-full ${wizardStep === 1 ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"}`}>
@@ -835,7 +1048,6 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* STEP 1: BRIEF FORM */}
             {wizardStep === 1 && (
               <form onSubmit={handleCreateBrief} className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -877,7 +1089,7 @@ export default function HomePage() {
                     rows={4}
                     value={pBrief}
                     onChange={(e) => setPBrief(e.target.value)}
-                    placeholder="Jelaskan tujuan penelitian/pengembangan, latar belakang, metodologi yang diharapkan, dan luaran yang ditargetkan..."
+                    placeholder="Jelaskan tujuan penelitian/pengembangan, latar belakang, metodologi, dan luaran target..."
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
                   />
                 </div>
@@ -908,14 +1120,12 @@ export default function HomePage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{t.uploadAttachment}</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      accept=".pdf,.docx,.csv,.bib,.ris,.txt"
-                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                      className="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                    />
-                  </div>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.csv,.bib,.ris,.txt"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    className="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  />
                 </div>
 
                 <div className="pt-2 flex justify-end">
@@ -931,7 +1141,6 @@ export default function HomePage() {
               </form>
             )}
 
-            {/* STEP 2: CLARIFICATION INTERVIEW */}
             {wizardStep === 2 && (
               <div className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
                 <div>
@@ -940,7 +1149,7 @@ export default function HomePage() {
                     Wawancara Klarifikasi oleh Agen Analis
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Agen Analis mengidentifikasi beberapa pertanyaan penting untuk memastikan tim dibentuk dengan akurat. Anda dapat menjawab atau melewatinya (akan dicatat sebagai asumsi standar).
+                    Agen Analis mengidentifikasi beberapa pertanyaan penting untuk memastikan tim dibentuk dengan akurat.
                   </p>
                 </div>
 
@@ -991,7 +1200,6 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* STEP 3: RANCANG TIM (TEAM COMPOSER) */}
             {wizardStep === 3 && (
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1005,7 +1213,6 @@ export default function HomePage() {
                     </p>
                   </div>
 
-                  {/* Estimates Banner */}
                   {costRange && (
                     <div className="flex items-center gap-4 bg-indigo-50 dark:bg-indigo-950/50 p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 text-xs">
                       <div>
@@ -1024,7 +1231,6 @@ export default function HomePage() {
                   )}
                 </div>
 
-                {/* Warnings */}
                 {teamWarnings.length > 0 && (
                   <div className="space-y-1">
                     {teamWarnings.map((w, i) => (
@@ -1036,7 +1242,6 @@ export default function HomePage() {
                   </div>
                 )}
 
-                {/* Agent Cards Grid */}
                 <div className="grid gap-3 sm:grid-cols-2">
                   {proposedAgents.map((agent, idx) => (
                     <div key={idx} className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm space-y-3">
@@ -1106,7 +1311,6 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* STEP 4: G1 APPROVED & TEAM CHARTER */}
             {wizardStep === 4 && (
               <div className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm text-center space-y-4">
                 <div className="w-12 h-12 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-600">
@@ -1135,6 +1339,293 @@ export default function HomePage() {
                 </div>
               </div>
             )}
+          </div>
+        ) : activeTab === "confirmations" ? (
+          // ==================== KOTAK KONFIRMASI (CONFIRMATION BOX) ====================
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                  <CheckSquare className="w-6 h-6 text-indigo-500" />
+                  {t.pendingConfirmations}
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Daftar Titik Konfirmasi Scrum yang memerlukan persetujuan Product Owner sebelum tim dapat melanjutkan.
+                </p>
+              </div>
+
+              {pendingConfirmations.length > 1 && (
+                <button
+                  onClick={handleBatchApprove}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors shrink-0"
+                >
+                  <Check className="w-4 h-4" />
+                  {t.batchApprove} ({pendingConfirmations.length})
+                </button>
+              )}
+            </div>
+
+            {pendingConfirmations.length === 0 ? (
+              <div className="p-12 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-950 text-center space-y-3">
+                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">
+                  {t.noPendingConfirmations}
+                </h3>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingConfirmations.map((conf) => {
+                  const synthesis = conf.discussion?.synthesis || {};
+                  return (
+                    <div key={conf.id} className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                          Menunggu Konfirmasi PO
+                        </span>
+                        <span className="text-xs text-slate-400">Putaran ke-{conf.discussion?.round_number || 1}</span>
+                      </div>
+
+                      <div>
+                        <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                          Agenda: {conf.discussion?.agenda || "Diskusi Tim"}
+                        </h3>
+                      </div>
+
+                      {/* Synthesis Card */}
+                      <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-3 text-xs">
+                        <div>
+                          <span className="font-bold text-slate-600 dark:text-slate-400 uppercase text-[10px] block">Usulan Scrum Master</span>
+                          <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
+                            {synthesis.proposed_decision || "Melanjutkan agenda dengan pendekatan standar."}
+                          </p>
+                        </div>
+
+                        {synthesis.agreed_points && (
+                          <div>
+                            <span className="font-bold text-slate-600 dark:text-slate-400 uppercase text-[10px] block">Poin Disepakati</span>
+                            <ul className="list-disc pl-4 mt-0.5 text-slate-600 dark:text-slate-300 space-y-0.5">
+                              {synthesis.agreed_points.map((pt: string, i: number) => (
+                                <li key={i}>{pt}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {synthesis.disagreements && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                            <div className="p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20">
+                              <strong className="text-indigo-700 dark:text-indigo-300 block mb-1">Opsi A:</strong>
+                              <span>{synthesis.disagreements.option_a || conf.options[0]?.label}</span>
+                            </div>
+                            <div className="p-2.5 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/50 dark:bg-purple-950/20">
+                              <strong className="text-purple-700 dark:text-purple-300 block mb-1">Opsi B:</strong>
+                              <span>{synthesis.disagreements.option_b || conf.options[1]?.label}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* PO Guidance Input */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                          Catatan / Arahan PO (Opsional bila lanjut diskusi atau ubah arah):
+                        </label>
+                        <input
+                          type="text"
+                          value={poDirectionInputs[conf.id] || ""}
+                          onChange={(e) => setPoDirectionInputs({ ...poDirectionInputs, [conf.id]: e.target.value })}
+                          placeholder="Ketik arahan spesifik untuk tim..."
+                          className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                        />
+                      </div>
+
+                      {/* Decision Buttons */}
+                      <div className="pt-2 flex flex-wrap gap-2 items-center justify-end">
+                        <button
+                          onClick={() => handleDecide(conf.id, "choose_option", "A")}
+                          className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors"
+                        >
+                          {t.optionA}
+                        </button>
+                        <button
+                          onClick={() => handleDecide(conf.id, "choose_option", "B")}
+                          className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition-colors"
+                        >
+                          {t.optionB}
+                        </button>
+                        <button
+                          onClick={() => handleDecide(conf.id, "approve_proposed")}
+                          className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors"
+                        >
+                          {t.approveProposed}
+                        </button>
+                        <button
+                          onClick={() => handleDecide(conf.id, "continue_discussion")}
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium transition-colors"
+                        >
+                          {t.continueDiscussion}
+                        </button>
+                        <button
+                          onClick={() => handleDecide(conf.id, "redirect")}
+                          className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-xs font-medium transition-colors"
+                        >
+                          {t.redirect}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : activeTab === "teamRoom" ? (
+          // ==================== RUANG TIM (TEAM ROOM) ====================
+          <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                  <MessageSquare className="w-6 h-6 text-indigo-500" />
+                  {t.teamRoom}
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  {t.singleRoundNotice}
+                </p>
+              </div>
+
+              {/* Project selector dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Proyek:</span>
+                <select
+                  value={selectedRoomProjId}
+                  onChange={(e) => {
+                    setSelectedRoomProjId(e.target.value);
+                    loadRoomData(e.target.value, token!);
+                  }}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Start New Discussion Form */}
+            <form onSubmit={handleCreateNewDiscussion} className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm flex flex-col sm:flex-row items-end gap-3">
+              <div className="flex-1 w-full">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                  Topik Agenda Baru (Satu Putaran)
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newAgendaTitle}
+                  onChange={(e) => setNewAgendaTitle(e.target.value)}
+                  placeholder="e.g. Pembahasan Metodologi Eksperimen dan Validasi Statistik"
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!selectedRoomProjId}
+                className="py-1.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors shrink-0 disabled:opacity-50"
+              >
+                {t.startDiscussion}
+              </button>
+            </form>
+
+            {/* Active Discussion View */}
+            {activeDiscussion && (
+              <div className="p-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Agenda Diskusi</span>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">{activeDiscussion.agenda}</h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 capitalize">
+                      Status: {activeDiscussion.status}
+                    </span>
+                    {activeDiscussion.status === "draft" && (
+                      <button
+                        onClick={() => handleRunSingleRound(activeDiscussion.id)}
+                        disabled={isRunningRound}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        {isRunningRound ? "Menjalankan Putaran..." : t.runRound}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contributions list */}
+                <div className="space-y-3 pt-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase block">Kontribusi Peserta:</span>
+                  {activeDiscussion.contributions.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">Belum ada pembicara. Klik Jalankan Putaran untuk memulai diskusi satu putaran.</p>
+                  ) : (
+                    activeDiscussion.contributions.map((c, i) => (
+                      <div key={c.id || i} className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="font-semibold text-indigo-600 dark:text-indigo-400">Pembicara ke-{i + 1}</span>
+                          <span>{c.token_count} token</span>
+                        </div>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Synthesis view if available */}
+                {activeDiscussion.synthesis && activeDiscussion.synthesis.proposed_decision && (
+                  <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2 text-xs">
+                    <span className="font-bold text-indigo-700 dark:text-indigo-300 block">Sintesis Scrum Master:</span>
+                    <p className="text-slate-800 dark:text-slate-200">{activeDiscussion.synthesis.proposed_decision}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Decision Log Table */}
+            <div className="space-y-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Compass className="w-5 h-5 text-indigo-500" />
+                {t.decisionLog}
+              </h3>
+              <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Waktu</th>
+                      <th className="px-4 py-3">Keputusan</th>
+                      <th className="px-4 py-3">Alasan PO</th>
+                      <th className="px-4 py-3">Pemutus</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                    {projectDecisions.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                          Belum ada keputusan tercatat dalam Decision Log.
+                        </td>
+                      </tr>
+                    ) : (
+                      projectDecisions.map((d) => (
+                        <tr key={d.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                          <td className="px-4 py-3 text-slate-400 font-mono text-[11px]">
+                            {new Date(d.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{d.summary}</td>
+                          <td className="px-4 py-3 text-slate-500">{d.rationale}</td>
+                          <td className="px-4 py-3 text-slate-600">{d.decided_by}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         ) : activeTab === "settings" && user.role === "admin" ? (
           // ==================== ADMIN SETTINGS ====================
@@ -1398,7 +1889,7 @@ export default function HomePage() {
             </div>
           </div>
         ) : (
-          // ==================== LOGGED IN DASHBOARD ====================
+          // ==================== DASHBOARD HOME ====================
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
               <div>

@@ -22,12 +22,12 @@
     - Alur dari brief sampai G1 berjalan di UI dan menghasilkan `team-charter.md`.
     - Mengubah model/tier di UI memperbarui estimasi biaya.
 
-- [/] **Prompt 5: Meeting Engine: satu putaran + Titik Konfirmasi** [SEDANG DIKERJAKAN]
+- [x] **Prompt 5: Meeting Engine: satu putaran + Titik Konfirmasi**
   - Kriteria Selesai:
     - Demo: diskusi dengan 3 agen palsu -> sintesis -> PO memilih opsi B -> keputusan masuk Decision Log.
     - Semua tes lolos: satu putaran tepat satu kontribusi per peserta, tidak ada putaran kedua tanpa klik PO, restart worker di tengah diskusi tidak menggandakan kontribusi, plafon token menghentikan putaran.
 
-- [ ] **Prompt 6: Inception: dari diskusi menjadi PRD/Rencana dan Product Backlog**
+- [/] **Prompt 6: Inception: dari diskusi menjadi PRD/Rencana dan Product Backlog** [SEDANG DIKERJAKAN]
   - Kriteria Selesai:
     - Dari proyek proposal sampai G2 dengan FakeProvider: semua berkas keluaran ada di workspace dengan metadata benar.
     - Mengubah urutan Product Backlog hanya bisa dilakukan PO.

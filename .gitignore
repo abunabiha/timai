@@ -43,6 +43,7 @@ yarn-error.log*
 *.db
 pgdata/
 redisdata/
+workspaces/
 
 # IDE & OS
 .vscode/
