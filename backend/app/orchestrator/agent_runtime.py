@@ -27,6 +27,7 @@ from app.db.models import (
 from app.gateway.gateway import model_gateway
 from app.orchestrator.budget_guard import budget_guard
 from app.orchestrator.inception import get_git_executable, get_project_workspace_path
+from app.orchestrator.learning import learning_engine
 from app.orchestrator.quality_checker import QualityReport, quality_checker
 
 logger = logging.getLogger("timai.agent_runtime")
@@ -330,8 +331,14 @@ class AgentRuntime:
             current_tool=None,
         )
 
-        # 3. Assemble focused context
-        focused_context = self.assemble_focused_context(workspace_path, task, pbi, project)
+        # 3. Assemble focused context & inject active lessons (FR-14.1)
+        base_context = self.assemble_focused_context(workspace_path, task, pbi, project)
+        focused_context = await learning_engine.inject_active_lessons(
+            db=db,
+            base_prompt=base_context,
+            profile_id=project.profile_id,
+            project_id=project.id,
+        )
 
         # 4. Enforce write permission
         self.verify_tool_permission(agent, "write_workspace_file")

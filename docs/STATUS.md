@@ -44,3 +44,8 @@
 - **Perintah menjalankan**: Uji via `docker compose exec -T backend pytest tests/test_agent_runtime.py` atau `make test`, jalankan eksekusi agen nyata lewat tombol "Jalankan Runtime API Agen" di tab Kanban `http://localhost:3001`.
 - **Hal yang belum**: Learning Engine dasar (memori preferensi PO, promosi pelajaran retro usulan -> aktif -> nonaktif, injeksi pelajaran aktif ke prompt agen, ModelScorecard per peran, dan kalibrasi estimasi) (dikerjakan di Milestone 9).
 
+## Milestone 9: Learning Engine Dasar
+- **Apa yang jadi**: Learning Engine dasar berlandaskan Prinsip Kejujuran (sistem tidak melatih bobot model; belajar di tingkat sistem dan dikendalikan PO); ekstraksi otomatis preferensi PO dari Titik Konfirmasi, catatan penolakan Sprint Review (G3), dan Retrospektif; siklus hidup Lesson (usulan -> aktif -> nonaktif) dengan promosi otomatis jika muncul berulang (>= 2 kali); penyuntikan pelajaran aktif ke prompt konteks agen dengan isolasi privasi untuk proyek rahasia; ModelScorecard pencatat kinerja model per peran dan profil yang terintegrasi ke rumus seleksi model Team Composer (PRD Bagian 10 langkah 6); kalkulasi kalibrasi estimasi; serta antarmuka UI "Yang Dipelajari Sistem" untuk kendali PO.
+- **Perintah menjalankan**: Uji via `docker compose exec -T backend pytest tests/test_learning_engine.py` atau `make test`, buka tab "Yang Dipelajari Sistem" di web `http://localhost:3001`.
+- **Hal yang belum**: Pengerasan MVP dan uji menyeluruh (tes end-to-end lengkap FakeProvider brief -> G1 -> Inception G2 -> Sprints -> G3 -> penutupan G4, uji ketahanan worker crash, skrip backup/restore DB & workspace, audit keamanan, panduan README dan daftar periksa pilot) (dikerjakan di Milestone 10).
+

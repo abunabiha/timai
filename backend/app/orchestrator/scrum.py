@@ -19,6 +19,7 @@ from app.db.models import (
     User,
 )
 from app.orchestrator.inception import get_git_executable, get_project_workspace_path
+from app.orchestrator.learning import learning_engine
 
 
 class ScrumEngine:
@@ -344,7 +345,8 @@ Progres berjalan sesuai rencana dengan {len(done_tasks)} task selesai dan {len(a
 
         for pbi in pbis:
             pbi_dec = decisions_per_pbi.get(pbi.id, {"decision": "accept", "notes": ""})
-            if pbi_dec["decision"] == "accept":
+            is_acc = pbi_dec["decision"] == "accept"
+            if is_acc:
                 pbi.status = "done"
                 accepted_pbis.append(pbi)
             else:
@@ -353,6 +355,26 @@ Progres berjalan sesuai rencana dengan {len(done_tasks)} task selesai dan {len(a
                 # Keep sprint_id or reset to allow replanning
                 pbi.sprint_id = None
                 rejected_pbis.append(pbi)
+
+            # Record ModelScorecard and extract lessons from PO rejection (FR-14.1 & FR-14.4)
+            await learning_engine.record_scorecard_entry(
+                db=db,
+                model_id=None,
+                role_name="writer",
+                profile_id=project.profile_id,
+                is_accepted=is_acc,
+                revisions_count=0 if is_acc else 1,
+                cost=0.005,
+            )
+            if not is_acc and pbi_dec.get("notes"):
+                await learning_engine.extract_or_update_lesson(
+                    db=db,
+                    content=f"Preferensi PO: {pbi_dec['notes']}",
+                    layer="preference",
+                    evidence=f"Catatan penolakan PBI '{pbi.title}' di Sprint Review {sprint.sprint_number}",
+                    project=project,
+                    preferred_scope="profile",
+                )
 
         velocity_points = sum(p.story_points for p in accepted_pbis)
         sprint.velocity_achieved = velocity_points
@@ -471,15 +493,14 @@ disetujui_oleh: {current_user.name} · {now_str}
         if not project:
             raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
 
-        lesson = Lesson(
-            layer="retro",
-            scope="project",
+        lesson = await learning_engine.extract_or_update_lesson(
+            db=db,
             content=action_item,
+            layer="retro",
             evidence=f"Hasil Retrospective Sprint {sprint.sprint_number}",
-            status="suggested",
-            project_id=project.id,
+            project=project,
+            preferred_scope="project",
         )
-        db.add(lesson)
 
         workspace_path = get_project_workspace_path(project)
         sprint_dir = workspace_path / "sprints" / f"sprint-{sprint.sprint_number:02d}"

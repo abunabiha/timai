@@ -1,1 +1,1 @@
-milestone 8: eksekusi agen, review silang, penjaga anggaran
+milestone 9: learning engine dasar

@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.core.auth import get_current_user, require_role
 from app.db.models import Confirmation, Decision, Discussion, User
 from app.db.session import get_db
+from app.orchestrator.learning import learning_engine
 from app.orchestrator.meeting import meeting_engine
 from app.schemas.discussion import (
     BatchDecisionRequest,
@@ -63,6 +64,22 @@ async def decide_confirmation(
             selected_option=payload.selected_option,
             po_notes=payload.po_notes,
         )
+
+        # Extract PO preference lesson if notes provided (FR-14.1)
+        if payload.po_notes:
+            conf_stmt = select(Confirmation).where(Confirmation.id == confirmation_id).options(selectinload(Confirmation.discussion).selectinload(Discussion.project))
+            c_res = await db.execute(conf_stmt)
+            conf_obj = c_res.scalar_one_or_none()
+            if conf_obj and conf_obj.discussion and conf_obj.discussion.project:
+                await learning_engine.extract_or_update_lesson(
+                    db=db,
+                    content=f"Preferensi PO: {payload.po_notes}",
+                    layer="preference",
+                    evidence=f"Catatan PO pada Titik Konfirmasi ({conf_obj.discussion.agenda})",
+                    project=conf_obj.discussion.project,
+                    preferred_scope="profile",
+                )
+
         return res
     except ValueError as err:
         raise HTTPException(status_code=404, detail=str(err))

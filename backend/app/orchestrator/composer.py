@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Agent, Gate, Model, Project, RoleTemplate
+from app.orchestrator.learning import learning_engine
 from app.orchestrator.role_catalog import ROLE_DEFINITIONS, seed_role_templates_if_needed
 
 logger = logging.getLogger("timai.composer")
@@ -212,8 +213,16 @@ class TeamComposer:
             if not matching_models:
                 matching_models = available_models or []
 
-            # Scoring: 0.4*competency + 0.3*perf + 0.3*(1 - price_norm)
-            selected_model = matching_models[0] if matching_models else None
+            # 6. Model selection using PRD 10.6 formula with ModelScorecard
+            selected_model = None
+            best_model_score = -1.0
+            for m in matching_models:
+                m_score = await learning_engine.calculate_model_score(db, m, role.id, profile_id)
+                if m_score > best_model_score:
+                    best_model_score = m_score
+                    selected_model = m
+            if not selected_model and matching_models:
+                selected_model = matching_models[0]
             fallback_model = None
 
             if selected_model:

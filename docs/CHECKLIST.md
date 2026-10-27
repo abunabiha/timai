@@ -42,10 +42,10 @@
     - Satu proyek proposal berjalan end-to-end memakai FakeProvider dengan hasil artefak, review, dan penghentian anggaran yang terverifikasi.
     - Uji manual singkat dengan satu model nyata murah (tier low) pada satu Task.
 
-- [/] **Prompt 9: Learning Engine dasar** [SEDANG DIKERJAKAN]
+- [x] **Prompt 9: Learning Engine dasar**
   - Kriteria Selesai:
     - Demo dua proyek berurutan: koreksi PO di proyek 1 muncul sebagai usulan, disetujui, lalu terlihat mempengaruhi prompt di proyek 2.
 
-- [ ] **Prompt 10: Pengerasan MVP dan uji menyeluruh**
+- [/] **Prompt 10: Pengerasan MVP dan uji menyeluruh** [SEDANG DIKERJAKAN]
   - Kriteria Selesai:
     - `make test` hijau; skenario end-to-end lolos; README bisa diikuti dari nol.

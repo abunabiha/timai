@@ -10,6 +10,7 @@ from app.api.agent_runtime import router as agent_runtime_router
 from app.api.confirmations import router as confirmations_router
 from app.api.discussions import router as discussions_router
 from app.api.inceptions import router as inceptions_router
+from app.api.learning import router as learning_router
 from app.api.models import router as models_router
 from app.api.projects import router as projects_router
 from app.api.providers import router as providers_router
@@ -45,6 +46,7 @@ app.include_router(confirmations_router, prefix="/api")
 app.include_router(inceptions_router, prefix="/api")
 app.include_router(sprints_router, prefix="/api")
 app.include_router(agent_runtime_router, prefix="/api")
+app.include_router(learning_router, prefix="/api")
 
 
 

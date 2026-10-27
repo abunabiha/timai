@@ -35,8 +35,10 @@ import {
   ArrowUp,
   ArrowDown,
   RefreshCw,
+  GraduationCap,
 } from "lucide-react";
 import ActiveAgentsPanel from "@/components/ActiveAgentsPanel";
+import LearningEnginePanel from "@/components/LearningEnginePanel";
 
 interface UserProfile {
   id: string;
@@ -244,7 +246,7 @@ export default function HomePage() {
   const [token, setToken] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "confirmations" | "teamRoom" | "inception" | "kanban">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "confirmations" | "teamRoom" | "inception" | "kanban" | "learning">("dashboard");
 
   // Providers & Models
   const [providers, setProviders] = useState<ProviderItem[]>([]);
@@ -1319,8 +1321,18 @@ export default function HomePage() {
               >
                 <Layers className="w-4 h-4" /> {t.kanbanTab}
               </span>
-              <span className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer flex items-center gap-1.5">
-                <BookOpen className="w-4 h-4" /> {t.systemLearning}
+              <span
+                onClick={() => {
+                  setActiveTab("learning");
+                  setIsWizardOpen(false);
+                }}
+                className={`cursor-pointer flex items-center gap-1.5 transition-colors ${
+                  activeTab === "learning"
+                    ? "text-indigo-600 dark:text-indigo-400 font-semibold"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <GraduationCap className="w-4 h-4" /> {t.systemLearning}
               </span>
               {user.role === "admin" && (
                 <span
@@ -3105,6 +3117,9 @@ export default function HomePage() {
               </div>
             )}
           </div>
+        ) : activeTab === "learning" ? (
+          // ==================== SYSTEM LEARNING (FR-14) ====================
+          <LearningEnginePanel token={token || ""} userRole={user.role} projects={projects} />
         ) : (
           // ==================== DASHBOARD HOME ====================
           <div className="space-y-6">
