@@ -27,15 +27,16 @@
     - Demo: diskusi dengan 3 agen palsu -> sintesis -> PO memilih opsi B -> keputusan masuk Decision Log.
     - Semua tes lolos: satu putaran tepat satu kontribusi per peserta, tidak ada putaran kedua tanpa klik PO, restart worker di tengah diskusi tidak menggandakan kontribusi, plafon token menghentikan putaran.
 
-- [/] **Prompt 6: Inception: dari diskusi menjadi PRD/Rencana dan Product Backlog** [SEDANG DIKERJAKAN]
+- [x] **Prompt 6: Inception: dari diskusi menjadi PRD/Rencana dan Product Backlog**
   - Kriteria Selesai:
     - Dari proyek proposal sampai G2 dengan FakeProvider: semua berkas keluaran ada di workspace dengan metadata benar.
     - Mengubah urutan Product Backlog hanya bisa dilakukan PO.
 
-- [ ] **Prompt 7: Scrum Engine dan Kanban**
+- [/] **Prompt 7: Scrum Engine dan Kanban** [SEDANG DIKERJAKAN]
   - Kriteria Selesai:
     - Simulasi satu sprint penuh: Planning -> Eksekusi (palsu) -> Review -> Retro, dengan G3 menolak satu PBI dan PBI itu kembali ke backlog.
     - Burndown dan velocity terhitung benar pada data simulasi.
+
 
 - [ ] **Prompt 8: Eksekusi agen, review silang, penjaga anggaran**
   - Kriteria Selesai:

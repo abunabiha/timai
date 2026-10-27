@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.auth import router as auth_router
 from app.api.confirmations import router as confirmations_router
 from app.api.discussions import router as discussions_router
+from app.api.inceptions import router as inceptions_router
 from app.api.models import router as models_router
 from app.api.projects import router as projects_router
 from app.api.providers import router as providers_router
@@ -39,6 +40,8 @@ app.include_router(models_router, prefix="/api")
 app.include_router(roles_router, prefix="/api")
 app.include_router(discussions_router, prefix="/api")
 app.include_router(confirmations_router, prefix="/api")
+app.include_router(inceptions_router, prefix="/api")
+
 
 
 async def check_redis_connection() -> bool:

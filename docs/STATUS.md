@@ -27,3 +27,9 @@
 - **Perintah menjalankan**: Uji via `make test` dan `make lint`, atau buka menu Ruang Tim dan Kotak Konfirmasi di antarmuka web `http://localhost:3001`.
 - **Hal yang belum**: Alur Inception lengkap (agenda otomatis per profil Proposal/Jurnal, perakitan dokumen Inception, ekstraksi Product Backlog/Epics/DoD/Rencana Rilis/Risiko, gerbang G2, dan ekspor DOCX/PDF) (dikerjakan di Milestone 6).
 
+## Milestone 6: Inception, Perakitan PRD, Product Backlog, G2
+- **Apa yang jadi**: Alur Inception lengkap berbasis profil proyek (Proposal, Jurnal, Software, IoT, Buku) dengan inisialisasi agenda diskusi terstruktur, perakitan otomatis dokumen Inception (`02-inception/dokumen-inception.md`) dari notulen dan keputusan yang dilengkapi blok metadata PRD 5.2d, pembuatan otomatis Product Goal, Epik, Product Backlog Items dengan story points & kriteria penerimaan, DoD (`dod.md`), Rencana Rilis (`rencana-rilis.md`), Risk Register (`risiko.md`), kontrol hak akses ketat di mana reordering backlog hanya bisa dilakukan PO, persetujuan gerbang G2 (Setuju/Revisi/Batal), ekspor dokumen Inception ke format DOCX (`python-docx`) dan PDF (`reportlab`), serta antarmuka UI Inception & Gerbang G2.
+- **Perintah menjalankan**: Uji via `docker compose exec -T backend pytest` atau `make test`, dan akses tab Inception di web `http://localhost:3001`.
+- **Hal yang belum**: Scrum Engine dan Kanban (Sprint Planning, Sprint Backlog, Daily Standup report, Sprint Review G3 terima/tolak PBI, Retrospective usulan pelajaran, Burndown & Velocity) (dikerjakan di Milestone 7).
+
+

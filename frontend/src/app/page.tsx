@@ -31,6 +31,10 @@ import {
   Check,
   Clock,
   Compass,
+  Download,
+  ArrowUp,
+  ArrowDown,
+  RefreshCw,
 } from "lucide-react";
 
 interface UserProfile {
@@ -148,6 +152,59 @@ interface DecisionItem {
   created_at: string;
 }
 
+interface InceptionAgenda {
+  agenda_number: string;
+  title: string;
+  description: string;
+  lead_role: string;
+  expected_output: string;
+  discussion_id?: string;
+  is_completed: boolean;
+  selected_option?: string;
+}
+
+interface InceptionStatus {
+  project_id: string;
+  profile_id: string;
+  agendas: InceptionAgenda[];
+  is_ready_for_assembly: boolean;
+  has_assembled: boolean;
+  gate_g2_status?: string;
+}
+
+interface InceptionDoc {
+  version: number;
+  content: string;
+  status: string;
+  product_goal: string;
+  gate_g2?: {
+    decision: string;
+    comments: string;
+    decided_at?: string;
+  };
+}
+
+interface BacklogItem {
+  id: string;
+  epic_id?: string;
+  project_id: string;
+  title: string;
+  item_type: string;
+  acceptance_criteria: string[];
+  story_points: number;
+  po_sort_order: number;
+  status: string;
+  source: string;
+  is_po_task: boolean;
+}
+
+interface EpicWithItems {
+  id: string;
+  title: string;
+  sort_order: number;
+  items: BacklogItem[];
+}
+
 export default function HomePage() {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggleTheme } = useTheme();
@@ -226,6 +283,16 @@ export default function HomePage() {
   const [newAgendaTitle, setNewAgendaTitle] = useState("");
   const [projectDecisions, setProjectDecisions] = useState<DecisionItem[]>([]);
   const [isRunningRound, setIsRunningRound] = useState(false);
+
+  // Inception & G2 Gate
+  const [selectedInceptionProjId, setSelectedInceptionProjId] = useState<string>("");
+  const [inceptionStatus, setInceptionStatus] = useState<InceptionStatus | null>(null);
+  const [inceptionDoc, setInceptionDoc] = useState<InceptionDoc | null>(null);
+  const [backlogEpics, setBacklogEpics] = useState<EpicWithItems[]>([]);
+  const [inceptionSubTab, setInceptionSubTab] = useState<"doc" | "backlog">("doc");
+  const [isAssembling, setIsAssembling] = useState(false);
+  const [poG2Comments, setPoG2Comments] = useState("");
+  const [g2Message, setG2Message] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Check setup status and existing token
   useEffect(() => {
@@ -335,6 +402,148 @@ export default function HomePage() {
       if (decRes.ok) {
         const decData = await decRes.json();
         setProjectDecisions(decData);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const loadInceptionData = async (projId: string, authToken: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/inceptions/projects/${projId}/status`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInceptionStatus(data);
+        if (data.has_assembled) {
+          loadInceptionDoc(projId, authToken);
+          loadInceptionBacklog(projId, authToken);
+        } else {
+          setInceptionDoc(null);
+          setBacklogEpics([]);
+        }
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const loadInceptionDoc = async (projId: string, authToken: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/inceptions/projects/${projId}/document`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInceptionDoc(data);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const loadInceptionBacklog = async (projId: string, authToken: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/inceptions/projects/${projId}/backlog`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBacklogEpics(data);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleInitInception = async (projId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/inceptions/projects/${projId}/init`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        loadInceptionData(projId, token);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleAssembleInception = async (projId: string) => {
+    if (!token) return;
+    setIsAssembling(true);
+    try {
+      const res = await fetch(`http://localhost:8000/api/inceptions/projects/${projId}/assemble`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        await loadInceptionData(projId, token);
+        setInceptionSubTab("doc");
+      }
+    } finally {
+      setIsAssembling(false);
+    }
+  };
+
+  const handleDecideG2 = async (projId: string, decision: "approved" | "revision_requested" | "rejected") => {
+    if (!token) return;
+    setG2Message(null);
+    try {
+      const res = await fetch(`http://localhost:8000/api/inceptions/projects/${projId}/g2`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decision, comments: poG2Comments }),
+      });
+      if (res.ok) {
+        setG2Message({
+          type: "success",
+          text: decision === "approved"
+            ? "Gerbang G2 berhasil disetujui! Proyek siap melangkah ke Sprint Planning."
+            : decision === "revision_requested"
+            ? "Permintaan revisi dikirim kembali ke tim. Putaran revisi telah disiapkan di Ruang Tim."
+            : "Proyek dibatalkan.",
+        });
+        loadInceptionData(projId, token);
+      } else {
+        const err = await res.json();
+        setG2Message({ type: "error", text: err.detail || "Gagal memproses keputusan G2." });
+      }
+    } catch {
+      setG2Message({ type: "error", text: "Terjadi kesalahan jaringan." });
+    }
+  };
+
+  const handleMoveBacklogItem = async (itemId: string, direction: "up" | "down") => {
+    if (!token || !selectedInceptionProjId) return;
+    const allItems = backlogEpics.flatMap((e) => e.items);
+    const index = allItems.findIndex((it) => it.id === itemId);
+    if (index === -1) return;
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === allItems.length - 1) return;
+
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    const reordered = [...allItems];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    try {
+      const res = await fetch(`http://localhost:8000/api/inceptions/projects/${selectedInceptionProjId}/backlog/reorder`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ordered_item_ids: reordered.map((it) => it.id) }),
+      });
+      if (res.ok) {
+        loadInceptionBacklog(selectedInceptionProjId, token);
       }
     } catch {
       // Ignored
@@ -842,6 +1051,24 @@ export default function HomePage() {
                 }`}
               >
                 <MessageSquare className="w-4 h-4" /> {t.teamRoom}
+              </span>
+              <span
+                onClick={() => {
+                  setActiveTab("inception");
+                  setIsWizardOpen(false);
+                  if (projects.length > 0) {
+                    const targetId = selectedInceptionProjId || projects[0].id;
+                    setSelectedInceptionProjId(targetId);
+                    loadInceptionData(targetId, token!);
+                  }
+                }}
+                className={`cursor-pointer flex items-center gap-1.5 transition-colors ${
+                  activeTab === "inception"
+                    ? "text-indigo-600 dark:text-indigo-400 font-semibold"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <Compass className="w-4 h-4" /> {t.inceptionTab}
               </span>
               <span className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer flex items-center gap-1.5">
                 <BookOpen className="w-4 h-4" /> {t.systemLearning}
@@ -1888,6 +2115,379 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+        ) : activeTab === "inception" ? (
+          // ==================== INCEPTION & G2 GATE ====================
+          <div className="space-y-6">
+            {/* Header & Project Selector */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 mb-2">
+                  <Compass className="w-3.5 h-3.5" />
+                  Tahap 3: Inception (PRD / Rencana & Backlog)
+                </div>
+                <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                  Tinjau PRD, Rencana & Gerbang G2
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Dari diskusi agenda terstruktur menuju Product Goal, Epik, Backlog terukur, Definition of Done, dan persetujuan PO.
+                </p>
+              </div>
+
+              {projects.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">Pilih Proyek:</span>
+                  <select
+                    value={selectedInceptionProjId}
+                    onChange={(e) => {
+                      const pid = e.target.value;
+                      setSelectedInceptionProjId(pid);
+                      if (token) loadInceptionData(pid, token);
+                    }}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium"
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title} ({p.profile_id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Notification alert */}
+            {g2Message && (
+              <div
+                className={`p-4 rounded-xl border flex items-center justify-between text-xs ${
+                  g2Message.type === "success"
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
+                    : "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-800 dark:text-red-200"
+                }`}
+              >
+                <span>{g2Message.text}</span>
+                <button onClick={() => setG2Message(null)} className="font-bold ml-4">
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {!selectedInceptionProjId ? (
+              <div className="p-8 text-center text-slate-400 text-xs">
+                Silakan buat atau pilih proyek terlebih dahulu.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Status Bar */}
+                <div className="p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                      <Layers className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                          {projects.find((p) => p.id === selectedInceptionProjId)?.title}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                          {inceptionStatus?.profile_id || "proposal"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Status Gerbang G2:{" "}
+                        <strong
+                          className={
+                            inceptionStatus?.gate_g2_status === "approved"
+                              ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                              : inceptionStatus?.gate_g2_status === "revision_requested"
+                              ? "text-amber-600 dark:text-amber-400 font-semibold"
+                              : "text-slate-600 dark:text-slate-400"
+                          }
+                        >
+                          {inceptionStatus?.gate_g2_status === "approved"
+                            ? "Disetujui PO (Lanjut Sprint)"
+                            : inceptionStatus?.gate_g2_status === "revision_requested"
+                            ? "Revisi Diminta PO"
+                            : "Menunggu Peninjauan PO"}
+                        </strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {(!inceptionStatus || inceptionStatus.agendas.length === 0) ? (
+                      <button
+                        onClick={() => handleInitInception(selectedInceptionProjId)}
+                        className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors"
+                      >
+                        Inisialisasi Agenda Inception
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleAssembleInception(selectedInceptionProjId)}
+                        disabled={isAssembling}
+                        className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isAssembling ? "animate-spin" : ""}`} />
+                        {isAssembling ? "Merakit Dokumen..." : "Rakit Dokumen Inception"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section A: Inception Agendas */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      Agenda Pembahasan Inception (1 Putaran + Keputusan PO)
+                    </h2>
+                    <span className="text-xs text-slate-500">
+                      {inceptionStatus?.agendas.filter((a) => a.is_completed).length || 0} dari{" "}
+                      {inceptionStatus?.agendas.length || 0} Selesai
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {inceptionStatus?.agendas.map((ag) => (
+                      <div
+                        key={ag.agenda_number}
+                        className={`p-4 rounded-xl border transition-all ${
+                          ag.is_completed
+                            ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800"
+                            : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            Agenda {ag.agenda_number}
+                          </span>
+                          <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                            {ag.lead_role}
+                          </span>
+                        </div>
+                        <h3 className="font-semibold text-xs text-slate-800 dark:text-slate-100 mb-1">
+                          {ag.title}
+                        </h3>
+                        <p className="text-[11px] text-slate-500 line-clamp-2 mb-3">
+                          {ag.description}
+                        </p>
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between">
+                          {ag.is_completed ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Opsi {ag.selected_option} Terpilih
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-medium text-slate-400">Belum diputuskan</span>
+                          )}
+                          <button
+                            onClick={() => {
+                              setSelectedRoomProjId(selectedInceptionProjId);
+                              setActiveTab("teamRoom");
+                            }}
+                            className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+                          >
+                            Ruang Tim &rarr;
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section B: Inception Documents & Backlog (if assembled) */}
+                {inceptionDoc && (
+                  <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm space-y-4 p-5">
+                    {/* Sub tabs & Export buttons */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setInceptionSubTab("doc")}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                            inceptionSubTab === "doc"
+                              ? "bg-indigo-600 text-white"
+                              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          }`}
+                        >
+                          Dokumen Lengkap (PRD/Rencana)
+                        </button>
+                        <button
+                          onClick={() => setInceptionSubTab("backlog")}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                            inceptionSubTab === "backlog"
+                              ? "bg-indigo-600 text-white"
+                              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          }`}
+                        >
+                          Product Backlog ({backlogEpics.flatMap((e) => e.items).length} Item)
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`http://localhost:8000/api/inceptions/projects/${selectedInceptionProjId}/export/docx`}
+                          download
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" /> Ekspor DOCX
+                        </a>
+                        <a
+                          href={`http://localhost:8000/api/inceptions/projects/${selectedInceptionProjId}/export/pdf`}
+                          download
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" /> Ekspor PDF
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Sub Tab: Document Content */}
+                    {inceptionSubTab === "doc" ? (
+                      <div className="space-y-4">
+                        <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
+                          <div className="font-bold text-slate-800 dark:text-slate-200 mb-1">
+                            Product Goal:
+                          </div>
+                          <p className="text-slate-600 dark:text-slate-400 italic">
+                            &ldquo;{inceptionDoc.product_goal}&rdquo;
+                          </p>
+                        </div>
+                        <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed bg-white dark:bg-slate-950 p-4 rounded-lg border border-slate-100 dark:border-slate-850 font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">
+                          {inceptionDoc.content}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Sub Tab: Product Backlog */
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <span>
+                            Urutan prioritas Product Backlog ditentukan oleh Product Owner (FR-7.4 & PRD 5.1).
+                          </span>
+                          {user.role === "viewer" && (
+                            <span className="text-amber-500 font-medium">
+                              (Mode Viewer: Hanya PO yang dapat mengubah urutan)
+                            </span>
+                          )}
+                        </div>
+
+                        {backlogEpics.map((epic) => (
+                          <div
+                            key={epic.id}
+                            className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden"
+                          >
+                            <div className="bg-slate-50 dark:bg-slate-900/60 px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                              <span>Epik: {epic.title}</span>
+                              <span className="text-[11px] font-normal text-slate-500">
+                                {epic.items.length} User Story / Task
+                              </span>
+                            </div>
+                            <div className="divide-y divide-slate-100 dark:divide-slate-850">
+                              {epic.items.map((item, idx) => (
+                                <div
+                                  key={item.id}
+                                  className="p-3.5 flex items-start justify-between gap-4 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors"
+                                >
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 text-[10px] font-bold flex items-center justify-center">
+                                        {item.po_sort_order + 1}
+                                      </span>
+                                      <h4 className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+                                        {item.title}
+                                      </h4>
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                                        {item.story_points} Poin
+                                      </span>
+                                      {item.is_po_task && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+                                          Tugas PO
+                                        </span>
+                                      )}
+                                    </div>
+                                    {item.acceptance_criteria && item.acceptance_criteria.length > 0 && (
+                                      <div className="pl-7 text-[11px] text-slate-500 space-y-0.5">
+                                        {item.acceptance_criteria.map((ac: any, i: number) => (
+                                          <div key={i} className="flex items-center gap-1.5">
+                                            <span className="w-1 h-1 rounded-full bg-slate-400"></span>
+                                            <span>{ac}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {user.role !== "viewer" && (
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        onClick={() => handleMoveBacklogItem(item.id, "up")}
+                                        disabled={idx === 0}
+                                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 disabled:opacity-20"
+                                        title="Pindah ke Atas"
+                                      >
+                                        <ArrowUp className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleMoveBacklogItem(item.id, "down")}
+                                        disabled={idx === epic.items.length - 1}
+                                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 disabled:opacity-20"
+                                        title="Pindah ke Bawah"
+                                      >
+                                        <ArrowDown className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* PO Decision Box for Gate G2 */}
+                    {user.role !== "viewer" && (
+                      <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          <h3 className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                            Titik Konfirmasi PO: Keputusan Gerbang G2 (Persetujuan Inception & Rencana)
+                          </h3>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Persetujuan G2 menandai berakhirnya tahap Inception dan mengunci ruang lingkup awal untuk masuk ke Sprint Planning.
+                        </p>
+                        <textarea
+                          rows={2}
+                          value={poG2Comments}
+                          onChange={(e) => setPoG2Comments(e.target.value)}
+                          placeholder="Catatan atau arahan PO untuk tim (opsional saat menyetujui, wajib diisi jika minta revisi)..."
+                          className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-1 focus:ring-indigo-500"
+                        />
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            onClick={() => handleDecideG2(selectedInceptionProjId, "rejected")}
+                            className="px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 hover:bg-red-100 text-xs font-semibold transition-colors"
+                          >
+                            Batalkan Proyek
+                          </button>
+                          <button
+                            onClick={() => handleDecideG2(selectedInceptionProjId, "revision_requested")}
+                            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors"
+                          >
+                            Minta Revisi Tim
+                          </button>
+                          <button
+                            onClick={() => handleDecideG2(selectedInceptionProjId, "approved")}
+                            className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Setujui Rencana (G2)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         ) : (
           // ==================== DASHBOARD HOME ====================
           <div className="space-y-6">
@@ -1965,6 +2565,16 @@ export default function HomePage() {
                       <div className="pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-xs text-slate-500">
                         <span>Pagu: {p.budget.toLocaleString()} {p.currency}</span>
                       </div>
+                      <button
+                        onClick={() => {
+                          setSelectedInceptionProjId(p.id);
+                          setActiveTab("inception");
+                          if (token) loadInceptionData(p.id, token);
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 font-medium text-xs transition-colors"
+                      >
+                        <Compass className="w-3.5 h-3.5" /> Tinjau Inception & Rencana (G2)
+                      </button>
                     </div>
                   ))}
                 </div>
