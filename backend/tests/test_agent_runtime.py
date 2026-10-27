@@ -1,29 +1,21 @@
-import os
 import uuid
-import pytest
-from datetime import datetime, timezone
 from pathlib import Path
+
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     Agent,
-    Artifact,
     BacklogItem,
-    Confirmation,
     Discussion,
-    Epic,
-    Gate,
-    ProductGoal,
     Project,
-    RoleTemplate,
-    Sprint,
     Task,
     UsageRecord,
     User,
 )
 from app.gateway.gateway import model_gateway
-from app.orchestrator.agent_runtime import agent_runtime, agent_tracker
+from app.orchestrator.agent_runtime import agent_runtime
 from app.orchestrator.budget_guard import (
     BudgetExceededException,
     RiskyActionBlockedException,

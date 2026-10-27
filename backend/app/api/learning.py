@@ -1,8 +1,8 @@
 from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.auth import get_current_user, require_role
 from app.db.models import Lesson, Model, ModelScorecard, User

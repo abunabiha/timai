@@ -1,1 +1,1 @@
-milestone 9: learning engine dasar
+milestone 10: pengerasan mvp dan uji menyeluruh

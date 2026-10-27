@@ -9,14 +9,18 @@ from sqlalchemy.orm import selectinload
 from app.core.auth import get_current_user, require_role
 from app.db.models import Attachment, Model, Project, ProjectProfile, User
 from app.db.session import get_db
+from app.orchestrator.closure import closure_orchestrator
 from app.orchestrator.composer import team_composer
 from app.orchestrator.extractor import extract_text_from_file
+from app.orchestrator.inception import get_project_workspace_path
 from app.schemas.project import (
     ApproveTeamRequest,
     ApproveTeamResponse,
     AttachmentResponse,
     ClarificationAnswersRequest,
     ClarificationQuestion,
+    ProjectCloseRequest,
+    ProjectCloseResponse,
     ProjectCreateRequest,
     ProjectProfileResponse,
     ProjectResponse,
@@ -24,6 +28,10 @@ from app.schemas.project import (
     RecalculateEstimateResponse,
     TeamProposalResponse,
 )
+
+ALLOWED_ATTACHMENT_EXTENSIONS = {".pdf", ".docx", ".csv", ".bib", ".ris", ".txt", ".md", ".json"}
+MAX_ATTACHMENT_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -130,8 +138,21 @@ async def upload_attachment(
         raise HTTPException(status_code=404, detail="Project not found")
     verify_project_ownership(project, current_user)
 
+    filename = os.path.basename(file.filename or "uploaded_file")
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_ATTACHMENT_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tipe berkas '{ext}' tidak diizinkan. Format yang didukung: {', '.join(sorted(ALLOWED_ATTACHMENT_EXTENSIONS))}",
+        )
+
     content = await file.read()
-    filename = file.filename or "uploaded_file"
+    if len(content) > MAX_ATTACHMENT_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ukuran berkas melebihi batas maksimum 50 MB.",
+        )
+
     full_text, summary = extract_text_from_file(filename, content)
 
     # Save to disk
@@ -306,3 +327,56 @@ async def approve_team_endpoint(
     )
 
     return ApproveTeamResponse(**res)
+
+
+@router.post("/{project_id}/close", response_model=ProjectCloseResponse)
+async def close_project_endpoint(
+    project_id: str,
+    payload: ProjectCloseRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_role(["admin", "po"]))],
+) -> ProjectCloseResponse:
+    """PO officially closes the project (Gate G4), creating final report, ZIP archive, and git tag."""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    verify_project_ownership(project, current_user)
+
+    res = await closure_orchestrator.close_project_g4(
+        db=db,
+        project_id=project.id,
+        current_user=current_user,
+        comments=payload.comments,
+    )
+    return ProjectCloseResponse(**res)
+
+
+@router.get("/{project_id}/closure-report")
+async def get_closure_report(
+    project_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Retrieve closure report content and artifact metadata."""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    verify_project_ownership(project, current_user)
+
+    workspace_path = get_project_workspace_path(project)
+    report_file = workspace_path / "final" / "laporan-penutupan.md"
+    zip_file = workspace_path / "final" / "paket-hasil-akhir.zip"
+
+    if not report_file.exists():
+        raise HTTPException(status_code=404, detail="Laporan penutupan belum dibuat. Proyek belum ditutup.")
+
+    return {
+        "project_id": project.id,
+        "status": project.status,
+        "report_content": report_file.read_text(encoding="utf-8"),
+        "has_zip_package": zip_file.exists(),
+        "zip_path": str(zip_file) if zip_file.exists() else None,
+    }
+

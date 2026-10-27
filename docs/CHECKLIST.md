@@ -46,6 +46,6 @@
   - Kriteria Selesai:
     - Demo dua proyek berurutan: koreksi PO di proyek 1 muncul sebagai usulan, disetujui, lalu terlihat mempengaruhi prompt di proyek 2.
 
-- [/] **Prompt 10: Pengerasan MVP dan uji menyeluruh** [SEDANG DIKERJAKAN]
+- [x] **Prompt 10: Pengerasan MVP dan uji menyeluruh**
   - Kriteria Selesai:
     - `make test` hijau; skenario end-to-end lolos; README bisa diikuti dari nol.

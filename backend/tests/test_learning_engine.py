@@ -1,9 +1,9 @@
 import uuid
+
 import pytest
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Lesson, Model, ModelScorecard, Project, Provider, User
+from app.db.models import Lesson, Model, Project, Provider, User
 from app.orchestrator.learning import learning_engine
 
 

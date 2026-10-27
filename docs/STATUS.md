@@ -49,3 +49,9 @@
 - **Perintah menjalankan**: Uji via `docker compose exec -T backend pytest tests/test_learning_engine.py` atau `make test`, buka tab "Yang Dipelajari Sistem" di web `http://localhost:3001`.
 - **Hal yang belum**: Pengerasan MVP dan uji menyeluruh (tes end-to-end lengkap FakeProvider brief -> G1 -> Inception G2 -> Sprints -> G3 -> penutupan G4, uji ketahanan worker crash, skrip backup/restore DB & workspace, audit keamanan, panduan README dan daftar periksa pilot) (dikerjakan di Milestone 10).
 
+## Milestone 10: Pengerasan MVP dan Uji Menyeluruh
+- **Apa yang jadi**: Pengerasan MVP menyeluruh mencakup orkestrasi Penutupan Proyek Gerbang G4 (`closure.py` dengan perakitan `final/laporan-penutupan.md/pdf/docx`, `final/paket-hasil-akhir.zip`, dan Git tag `final-release`); pengujian otomatis end-to-end lengkap dari Brief hingga G4; uji ketahanan worker crash & pemulihan interupsi tanpa kontribusi ganda; audit keamanan ketat (masking kunci API, penegakan RBAC untuk PO/Viewer, validasi unggahan berkas dan pencegahan path traversal); utilitas pencadangan dan pemulihan lintas platform (`scripts/backup.py` dan `scripts/restore.py`); dokumentasi menyeluruh `README.md` dan daftar periksa pilot pengguna `docs/PILOT_CHECKLIST.md`.
+- **Perintah menjalankan**: `docker compose exec backend pytest` (seluruh 34 tes lulus), `docker compose exec backend ruff check .` (linter bersih), `docker compose exec frontend npm run build` (build Next.js bersih), `python scripts/backup.py` (backup data).
+- **Hal yang belum**: Seluruh 10 Milestone MVP TimAI v1.0 telah SELESAI dan diverifikasi secara berurutan. Siap untuk tahap pilot proyek nyata pertama!
+
+

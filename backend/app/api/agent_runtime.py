@@ -1,11 +1,12 @@
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.auth import get_current_user, require_role
-from app.db.models import BacklogItem, Project, Sprint, Task, User
+from app.db.models import BacklogItem, Project, Sprint, User
 from app.db.session import get_db
 from app.orchestrator.agent_runtime import agent_runtime, agent_tracker
 from app.orchestrator.budget_guard import budget_guard
@@ -131,7 +132,7 @@ async def execute_all_sprint_tasks(
     executed_results = []
     for pbi in pbis:
         for t in pbi.tasks:
-            if t.status in ("todo", "in_progress"):
+            if t.status in ("todo", "in_progress") and t.step_type == "execute":
                 res = await agent_runtime.execute_task_with_cross_review(db=db, task_id=t.id)
                 executed_results.append(res)
 

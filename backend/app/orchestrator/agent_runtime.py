@@ -1,8 +1,5 @@
-import json
 import logging
 import os
-import re
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -19,16 +16,14 @@ from app.db.models import (
     Confirmation,
     Discussion,
     Project,
-    RoleTemplate,
     Sprint,
     Task,
-    UsageRecord,
 )
 from app.gateway.gateway import model_gateway
 from app.orchestrator.budget_guard import budget_guard
-from app.orchestrator.inception import get_git_executable, get_project_workspace_path
+from app.orchestrator.inception import get_project_workspace_path
 from app.orchestrator.learning import learning_engine
-from app.orchestrator.quality_checker import QualityReport, quality_checker
+from app.orchestrator.quality_checker import quality_checker
 
 logger = logging.getLogger("timai.agent_runtime")
 
@@ -420,7 +415,7 @@ tahap: 5 Eksekusi
 sprint: {sprint_num}
 dokumen: Artefak Kerja ({pbi.title})
 versi: {task.attempt_count + 1}
-dibuat_oleh: {agent.name} · {agent.role_template_id} · FakeProvider
+dibuat_oleh: {agent.name} · {agent.role_template_id} · {now_str}
 direview_oleh: Reviewer Metodologi
 status: draf
 disetujui_oleh: —
@@ -568,7 +563,7 @@ disetujui_oleh: —
         Execution -> Quality Check -> Review -> Max 1 Auto-Revision -> Waiting PO if failed (FR-9.5).
         """
         # 1. First Execution
-        exec_res = await self.execute_task(db, task_id)
+        await self.execute_task(db, task_id)
 
         # 2. First Review
         review_res = await self.review_task(db, task_id, force_decision=force_review_decision)
@@ -584,6 +579,11 @@ disetujui_oleh: —
         if review_res["decision"] == "approved":
             task.status = "done"
             pbi.status = "in_review"  # ready for sprint review G3
+            # Also mark companion verify task as done
+            v_stmt = select(Task).where(Task.backlog_item_id == pbi.id, Task.step_type == "verify")
+            v_res = await db.execute(v_stmt)
+            for vt in v_res.scalars().all():
+                vt.status = "done"
             await db.commit()
 
             agent_tracker.clear(pbi.project_id, task.agent_id)
@@ -615,7 +615,7 @@ disetujui_oleh: —
         )
 
         # Execute revised version
-        revised_res = await self.execute_task(db, task_id)
+        await self.execute_task(db, task_id)
 
         # Review revised version
         revised_review = await self.review_task(db, task_id, force_decision=force_review_decision)

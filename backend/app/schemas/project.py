@@ -139,3 +139,20 @@ class RoleTemplateResponse(BaseModel):
     tools: list[Any]
     prompt: str
     dod: str
+
+
+class ProjectCloseRequest(BaseModel):
+    comments: str = "Proyek resmi ditutup dan hasil akhir disetujui oleh PO."
+
+
+class ProjectCloseResponse(BaseModel):
+    project_id: str
+    status: str
+    gate_g4_id: str
+    laporan_penutupan: str
+    paket_hasil_akhir_zip: str
+    total_velocity: float
+    avg_velocity: float
+    total_cost: float
+    done_items_count: int
+

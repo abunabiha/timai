@@ -1,14 +1,12 @@
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.db.models import Lesson, Model, ModelScorecard, Project, UsageRecord
+from app.db.models import Lesson, Model, ModelScorecard, Project
 
 logger = logging.getLogger("timai.learning")
 
@@ -66,16 +64,16 @@ class LearningEngine:
         all_lessons = res.scalars().all()
 
         matched_lesson: Lesson | None = None
-        for l in all_lessons:
+        for existing_lesson in all_lessons:
             # Check exact match or high keyword overlap
-            l_words = set(re.findall(r"\w+", l.content.lower()))
-            if l.content.strip().lower() == clean_content.lower():
-                matched_lesson = l
+            l_words = set(re.findall(r"\w+", existing_lesson.content.lower()))
+            if existing_lesson.content.strip().lower() == clean_content.lower():
+                matched_lesson = existing_lesson
                 break
             if words:
                 overlap = sum(1 for w in words if w in l_words)
                 if overlap >= max(2, len(words) * 0.7):
-                    matched_lesson = l
+                    matched_lesson = existing_lesson
                     break
 
         if matched_lesson:
@@ -189,8 +187,8 @@ class LearningEngine:
             return base_prompt
 
         lines = ["\n\n### Aturan & Pelajaran yang Dipelajari Sistem (Preferensi PO Aktif):"]
-        for l in active_lessons:
-            lines.append(f"- [Aturan]: {l.content}")
+        for active_lesson in active_lessons:
+            lines.append(f"- [Aturan]: {active_lesson.content}")
 
         return base_prompt + "\n".join(lines)
 

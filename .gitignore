@@ -44,6 +44,7 @@ yarn-error.log*
 pgdata/
 redisdata/
 workspaces/
+backups/
 
 # IDE & OS
 .vscode/

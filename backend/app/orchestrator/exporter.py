@@ -215,3 +215,17 @@ def _format_md_for_reportlab(text: str) -> str:
     # Code `code` -> <font name="Courier">\1</font>
     t = re.sub(r"`(.*?)`", r'<font name="Courier">\1</font>', t)
     return t
+
+
+class DocumentExporter:
+    """Convenience class for document export operations."""
+
+    def export_to_docx(self, markdown_content: str, output_path: str | Path, title: str = "Dokumen Inception") -> str:
+        return export_markdown_to_docx(markdown_content, str(output_path), title)
+
+    def export_to_pdf(self, markdown_content: str, output_path: str | Path, title: str = "Dokumen Inception") -> str:
+        return export_markdown_to_pdf(markdown_content, str(output_path), title)
+
+
+exporter = DocumentExporter()
+
