@@ -39,3 +39,8 @@
 
 
 
+## Milestone 8: Eksekusi Agen, Review Silang, Penjaga Anggaran
+- **Apa yang jadi**: Agent Runtime API terstruktur dengan penegakan izin alat berbasis peran (*least privilege*) dan perakitan konteks terfokus hemat token (Task, kriteria penerimaan, DoD, serta potongan relevan dari workspace); pemeriksaan otomatis khusus profil Proposal & Jurnal (verifikasi DOI/sitasi, batas kata, dan pelabelan klaim tanpa rujukan sebagai `[perlu sumber]`); sistem review silang wajib oleh agen reviewer dengan pembatasan perbaikan otomatis maksimal 1 kali sebelum dipindahkan ke kolom Waiting PO beserta ringkasan masalah; penjaga anggaran (*Budget Guard*) dengan pemantauan ambang 50%, 80%, dan penghentian otomatis pada 100% pagu anggaran serta penjagaan tindakan berisiko (penghapusan berkas, akses domain baru); panel "Agen Sekarang" observabilitas real-time di UI; serta eksekusi proyek proposal end-to-end terverifikasi.
+- **Perintah menjalankan**: Uji via `docker compose exec -T backend pytest tests/test_agent_runtime.py` atau `make test`, jalankan eksekusi agen nyata lewat tombol "Jalankan Runtime API Agen" di tab Kanban `http://localhost:3001`.
+- **Hal yang belum**: Learning Engine dasar (memori preferensi PO, promosi pelajaran retro usulan -> aktif -> nonaktif, injeksi pelajaran aktif ke prompt agen, ModelScorecard per peran, dan kalibrasi estimasi) (dikerjakan di Milestone 9).
+

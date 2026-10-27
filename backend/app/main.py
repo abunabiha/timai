@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
+from app.api.agent_runtime import router as agent_runtime_router
 from app.api.confirmations import router as confirmations_router
 from app.api.discussions import router as discussions_router
 from app.api.inceptions import router as inceptions_router
@@ -43,6 +44,7 @@ app.include_router(discussions_router, prefix="/api")
 app.include_router(confirmations_router, prefix="/api")
 app.include_router(inceptions_router, prefix="/api")
 app.include_router(sprints_router, prefix="/api")
+app.include_router(agent_runtime_router, prefix="/api")
 
 
 

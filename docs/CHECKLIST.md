@@ -37,12 +37,12 @@
     - Simulasi satu sprint penuh: Planning -> Eksekusi (palsu) -> Review -> Retro, dengan G3 menolak satu PBI dan PBI itu kembali ke backlog.
     - Burndown dan velocity terhitung benar pada data simulasi.
 
-- [/] **Prompt 8: Eksekusi agen, review silang, penjaga anggaran** [SEDANG DIKERJAKAN]
+- [x] **Prompt 8: Eksekusi agen, review silang, penjaga anggaran**
   - Kriteria Selesai:
     - Satu proyek proposal berjalan end-to-end memakai FakeProvider dengan hasil artefak, review, dan penghentian anggaran yang terverifikasi.
     - Uji manual singkat dengan satu model nyata murah (tier low) pada satu Task.
 
-- [ ] **Prompt 9: Learning Engine dasar**
+- [/] **Prompt 9: Learning Engine dasar** [SEDANG DIKERJAKAN]
   - Kriteria Selesai:
     - Demo dua proyek berurutan: koreksi PO di proyek 1 muncul sebagai usulan, disetujui, lalu terlihat mempengaruhi prompt di proyek 2.
 

@@ -339,6 +339,16 @@ class TeamComposer:
         # 1. Persist Agents
         created_agents: list[Agent] = []
         for agent_data in team_config:
+            role_id = agent_data["role_id"].lower()
+            if "reviewer" in role_id or "checker" in role_id:
+                agent_perms = ["read_workspace", "search_workspace", "search_literature", "post_message", "update_card"]
+            elif "scrum" in role_id:
+                agent_perms = ["read_workspace", "post_message", "ask_po", "update_card"]
+            elif "lead" in role_id:
+                agent_perms = ["read_workspace", "write_workspace", "search_workspace", "search_literature", "post_message", "ask_po", "update_card"]
+            else:
+                agent_perms = ["read_workspace", "write_workspace", "search_workspace", "post_message", "update_card"]
+
             agent = Agent(
                 project_id=project.id,
                 role_template_id=agent_data["role_id"],
@@ -347,7 +357,7 @@ class TeamComposer:
                 model_id=agent_data.get("model_id"),
                 fallback_model_id=agent_data.get("fallback_model_id"),
                 runtime=agent_data.get("runtime", "api"),
-                permissions=["read_workspace", "create_artifact"],
+                permissions=agent_perms,
             )
             db.add(agent)
             created_agents.append(agent)

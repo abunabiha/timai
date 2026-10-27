@@ -94,8 +94,24 @@ class ScrumEngine:
             pbi.status = "sprint_backlog"
 
             # Create 2-3 tasks per PBI: draft/execute, verify, review
-            writer_agent = agents_by_role.get("academic_writer") or agents_by_role.get("backend_dev") or default_agent
-            reviewer_agent = agents_by_role.get("fact_checker") or agents_by_role.get("qa_engineer") or default_agent
+            writer_agent = (
+                agents_by_role.get("grant_writer")
+                or agents_by_role.get("academic_writer")
+                or agents_by_role.get("subject_matter_writer")
+                or agents_by_role.get("backend_dev")
+                or agents_by_role.get("research_lead")
+                or next((a for a in project.agents if "writer" in a.role_template_id or "lead" in a.role_template_id), None)
+                or default_agent
+            )
+            reviewer_agent = (
+                agents_by_role.get("reviewer_metodologi")
+                or agents_by_role.get("journal_fit_reviewer")
+                or agents_by_role.get("fact_checker")
+                or agents_by_role.get("qa_engineer")
+                or agents_by_role.get("book_editor")
+                or next((a for a in project.agents if "reviewer" in a.role_template_id or "checker" in a.role_template_id), None)
+                or default_agent
+            )
 
             task1 = Task(
                 backlog_item_id=pbi.id,

@@ -36,6 +36,7 @@ import {
   ArrowDown,
   RefreshCw,
 } from "lucide-react";
+import ActiveAgentsPanel from "@/components/ActiveAgentsPanel";
 
 interface UserProfile {
   id: string;
@@ -2798,6 +2799,17 @@ export default function HomePage() {
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Panel Agen Sekarang & Budget Guard (Prompt 8) */}
+                <ActiveAgentsPanel
+                  projectId={selectedKanbanProjId}
+                  sprintId={activeSprint?.id}
+                  token={token || ""}
+                  userRole={user.role}
+                  onRefreshKanban={() => {
+                    if (token) loadKanbanData(selectedKanbanProjId, token);
+                  }}
+                />
+
                 {/* Sprint Action & Status Bar */}
                 <div className="p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
